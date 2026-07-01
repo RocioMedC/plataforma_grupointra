@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Grupo Intra | Panel</title>
+</head>
+<body>
+    <h1>Panel principal</h1>
+    <p>Inicio de sesión correcto.</p>
+
+    <!-- Formulario seguro para el cierre de sesión -->
+    <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn-logout">Cerrar sesión</button>
+    </form>
+</body>
+</html>
