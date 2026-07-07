@@ -1,0 +1,210 @@
+Documento De Avance: Proyecto Plataforma Grupo Intra
+1. Crear el proyecto Django
+Primero se creó el proyecto base dentro de la carpeta:
+portal_grupo_intra
+Con el comando:
+python -m django startproject config .
+Esto creó los archivos principales de configuración:
+manage.py
+config/
+    settings.py
+    urls.py
+    asgi.py
+    wsgi.py
+Usamos config como carpeta interna porque ahí vive la configuración general del proyecto.
+
+2. Probar que Django funcionara
+Se ejecutó:
+python manage.py runserver
+Y se abrió:
+http://127.0.0.1:8000/
+Con eso confirmamos que Django estaba instalado y el proyecto arrancaba correctamente.
+
+3. Aplicar migraciones
+Django avisó que había migraciones pendientes. Se ejecutó:
+python manage.py migrate
+Esto creó las tablas básicas en la base de datos, como usuarios, sesiones, permisos y administración.
+
+4. Crear la app accounts
+Se creó una app para manejar el login:
+python manage.py startapp accounts
+Esto creó la carpeta:
+accounts/
+    views.py
+    urls.py
+    models.py
+    admin.py
+    apps.py
+    migrations/
+
+5. Registrar la app en settings.py
+En config/settings.py agregamos:
+INSTALLED_APPS = [
+    'accounts',
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+]
+Esto le dice a Django que la app accounts forma parte del proyecto.
+
+
+6. Crear la vista del login
+En accounts/views.py primero hicimos una vista simple:
+from django.shortcuts import render
+
+
+def login_view(request):
+    return render(request, 'accounts/login.html')
+Esta vista muestra el archivo HTML del login.
+
+
+7. Crear rutas de la app
+Creamos accounts/urls.py:
+from django.urls import path
+
+from . import views
+
+urlpatterns = [
+    path('', views.login_view, name='login'),
+]
+Esto indica que la ruta principal de la app mostrará el login.
+
+
+8. Conectar rutas principales
+En config/urls.py conectamos las rutas de accounts:
+from django.contrib import admin
+from django.urls import include, path
+
+urlpatterns = [
+    path('', include('accounts.urls')),
+    path('admin/', admin.site.urls),
+]
+Así, cuando alguien entra a:
+http://127.0.0.1:8000/
+Django carga la vista de login.
+
+
+9. Crear el HTML del login
+Creamos:
+accounts/templates/accounts/login.html
+Ahí construimos la pantalla con:
+•	Sección de marca INTRA.
+•	Tarjeta de login.
+•	Campo de usuario.
+•	Campo de contraseña.
+•	Enlace de “¿Olvidaste tu contraseña?”
+•	Botón de iniciar sesión.
+
+
+10. Crear el CSS
+Creamos:
+accounts/static/accounts/css/login.css
+Y en login.html cargamos el CSS con:
+{% load static %}
+<link rel="stylesheet" href="{% static 'accounts/css/login.css' %}">
+Esto permitió darle estilo visual al login.
+11. Agregar íconos a usuario y contraseña
+Modificamos los inputs para tener un contenedor con ícono:
+<div class="input-with-icon">
+    <span class="input-icon">
+        ...
+    </span>
+
+    <input type="text" id="username" name="username">
+</div>
+Los íconos se agregaron con SVG para que se vean más limpios que emojis.
+
+
+12. Preparar el formulario para enviar datos
+Cambiamos el formulario a método POST:
+<form class="login-form" method="post">
+    {% csrf_token %}
+method="post" permite enviar usuario y contraseña de forma correcta.
+{% csrf_token %} es la protección de seguridad que Django exige para formularios POST.
+13. Leer los datos enviados
+En accounts/views.py probamos recibir los datos:
+if request.method == 'POST':
+    username = request.POST.get('username')
+    password = request.POST.get('password')
+Primero los imprimimos en terminal para confirmar que llegaban correctamente.
+
+
+14. Autenticar con Django
+Después reemplazamos la prueba por autenticación real:
+from django.contrib import messages
+from django.contrib.auth import authenticate, login
+from django.shortcuts import redirect, render
+La vista quedó validando usuario y contraseña con:
+user = authenticate(
+    request,
+    username=username,
+    password=password
+)
+Si el usuario existe:
+login(request, user)
+return redirect('dashboard')
+Si no existe:
+messages.error(request, 'Usuario o contraseña incorrectos.')
+
+
+15. Crear dashboard temporal
+Creamos:
+accounts/templates/accounts/dashboard.html
+Con una pantalla simple:
+<h1>Panel principal</h1>
+<p>Inicio de sesión correcto.</p>
+También agregamos la ruta:
+path('dashboard/', views.dashboard_view, name='dashboard'),
+
+
+16. Mostrar mensajes de error
+En login.html agregamos:
+{% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+            <p class="message-error">{{ message }}</p>
+        {% endfor %}
+    </div>
+{% endif %}
+Y en CSS agregamos estilos para mostrar el error visualmente.
+
+17. Crear usuario administrador
+Se creó un usuario con:
+python manage.py createsuperuser
+Con ese usuario se pudo probar el login real.
+
+
+18. Proteger el dashboard
+Agregamos en accounts/views.py:
+from django.contrib.auth.decorators import login_required
+Y protegimos la vista:
+@login_required
+def dashboard_view(request):
+    return render(request, 'accounts/dashboard.html')
+En config/settings.py agregamos:
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'dashboard'
+
+Esto sirve para que, si alguien intenta entrar al dashboard sin sesión, Django lo mande al login.
+
+Estado Actual Del Proyecto
+Hasta ahora el proyecto ya tiene:
+Proyecto Django funcional
+Base de datos lista
+App accounts creada
+Login visual creado
+CSS conectado
+Formulario con POST
+CSRF token
+Validación con usuarios reales de Django
+Mensaje de error
+Dashboard temporal
+Usuario administrador de prueba
+Protección básica del dashboard
+
+Siguiente Paso Recomendado
+Agregar cierre de sesión:
+Logout
