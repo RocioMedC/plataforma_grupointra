@@ -25,9 +25,12 @@
         <thead>
           <tr>
             <th>Fecha</th>
+            <th>Usuario</th>
             <th>Registro corregido</th>
             <th>Motivo</th>
+            <th class="num">Monto anterior</th>
             <th class="num">Diferencia</th>
+            <th class="num">Monto nuevo</th>
             <th>Egreso generado</th>
           </tr>
         </thead>
@@ -35,13 +38,16 @@
           {% for a in ajustes %}
           <tr>
             <td>{{ a.creado_en|date:'d/m/Y H:i' }}</td>
+            <td>{% if a.usuario %}{{ a.usuario.get_full_name|default:a.usuario.username }}{% else %}—{% endif %}</td>
             <td>{{ a.content_type.name|capfirst }} · {{ a.registro }}</td>
             <td>{{ a.motivo }}</td>
+            <td class="num">{{ a.monto_anterior|dinero }}</td>
             <td class="num">{{ a.diferencia|dinero }}</td>
+            <td class="num">{{ a.monto_nuevo|dinero }}</td>
             <td>{% if a.egreso_generado %}{{ a.egreso_generado.monto|dinero }}{% else %}—{% endif %}</td>
           </tr>
           {% empty %}
-          <tr><td colspan="5" class="fin-empty">Todavía no hay ajustes registrados.</td></tr>
+          <tr><td colspan="8" class="fin-empty">Todavía no hay ajustes registrados.</td></tr>
           {% endfor %}
         </tbody>
       </table>

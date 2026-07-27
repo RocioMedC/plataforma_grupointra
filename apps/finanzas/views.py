@@ -6,6 +6,7 @@ from functools import wraps
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied
 from django.db.models import Count, Sum
 from django.http import HttpResponse
@@ -13,6 +14,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.core.auditoria.models import RegistroAuditoria
+from apps.core.auditoria.registro import registrar, registrar_cambio_de_campo
 from apps.core.permisos.grupos import usuario_pertenece_a
 
 from .ajustes import AjusteError, registrar_ajuste
@@ -65,15 +68,26 @@ def _actualizar_estatus_simple(request, modelo, campo_estatus, valores_validos):
     """Cambia el campo de estatus de un registro ya existente (Egreso,
     Honorario o Donativo) desde un control inline en la tabla, sin pasar por
     /admin/. `valores_validos` es el conjunto de choices válidos del campo;
-    cualquier otro valor se rechaza en vez de guardarse a ciegas."""
+    cualquier otro valor se rechaza en vez de guardarse a ciegas. El cambio
+    queda asentado en la bitácora."""
     obj = get_object_or_404(modelo, pk=request.POST.get('id'))
     valor = request.POST.get(campo_estatus)
     if valor not in valores_validos:
         messages.error(request, 'Estatus inválido.')
         return
+    anterior = getattr(obj, campo_estatus)
     setattr(obj, campo_estatus, valor)
     obj.save(update_fields=[campo_estatus])
+    registrar_cambio_de_campo(request.user, obj, campo_estatus, anterior, valor, etiqueta='estatus')
     messages.success(request, 'Estatus actualizado correctamente.')
+
+
+def _guardar_con_bitacora(request, form, mensaje):
+    """Guarda un formulario de alta y deja constancia de quién lo capturó."""
+    obj = form.save()
+    registrar(request.user, obj, RegistroAuditoria.Accion.CREO)
+    messages.success(request, mensaje)
+    return obj
 
 
 def _suma(queryset, campo='monto'):
@@ -288,15 +302,23 @@ def ingresos_view(request):
             elif estatus == Ingreso.Estatus.PARCIAL and monto_pagado > ingreso.monto:
                 messages.error(request, 'Lo cobrado no puede ser mayor que el monto total.')
             else:
+                estatus_anterior = ingreso.estatus
+                cobrado_anterior = ingreso.monto_pagado
                 ingreso.estatus = estatus
                 ingreso.monto_pagado = monto_pagado if estatus == Ingreso.Estatus.PARCIAL else Decimal('0')
                 ingreso.save(update_fields=['estatus', 'monto_pagado'])
+                registrar_cambio_de_campo(
+                    request.user, ingreso, 'estatus', estatus_anterior, estatus, etiqueta='estatus',
+                )
+                registrar_cambio_de_campo(
+                    request.user, ingreso, 'monto_pagado', cobrado_anterior, ingreso.monto_pagado,
+                    etiqueta='cobrado',
+                )
                 messages.success(request, 'Estatus actualizado correctamente.')
             return redirect('finanzas:ingresos')
         form_ingreso = IngresoForm(request.POST)
         if form_ingreso.is_valid():
-            form_ingreso.save()
-            messages.success(request, 'Ingreso registrado correctamente.')
+            _guardar_con_bitacora(request, form_ingreso, 'Ingreso registrado correctamente.')
             return redirect('finanzas:ingresos')
     else:
         form_ingreso = IngresoForm(initial={'fecha': hoy})
@@ -336,14 +358,12 @@ def honorarios_view(request):
         if accion == 'tabulador':
             form_tabulador = TabuladorForm(request.POST)
             if form_tabulador.is_valid():
-                form_tabulador.save()
-                messages.success(request, 'Tabulador registrado correctamente.')
+                _guardar_con_bitacora(request, form_tabulador, 'Tabulador registrado correctamente.')
                 return redirect('finanzas:honorarios')
         elif accion == 'honorario':
             form_honorario = HonorarioForm(request.POST)
             if form_honorario.is_valid():
-                form_honorario.save()
-                messages.success(request, 'Honorario registrado correctamente.')
+                _guardar_con_bitacora(request, form_honorario, 'Honorario registrado correctamente.')
                 return redirect('finanzas:honorarios')
         elif accion == 'estatus_honorario':
             _actualizar_estatus_simple(request, Honorario, 'estatus', Honorario.Estatus.values)
@@ -354,8 +374,7 @@ def honorarios_view(request):
         else:
             form_egreso = EgresoForm(request.POST)
             if form_egreso.is_valid():
-                form_egreso.save()
-                messages.success(request, 'Egreso registrado correctamente.')
+                _guardar_con_bitacora(request, form_egreso, 'Egreso registrado correctamente.')
                 return redirect('finanzas:honorarios')
 
     honorarios = (
@@ -477,6 +496,11 @@ def reporte_recepcion_view(request):
             try:
                 filas = leer_reporte_api(fecha_inicio_str, fecha_fin_str)
                 resumen = importar_citas(filas)
+                registrar(
+                    request.user, None, RegistroAuditoria.Accion.IMPORTO,
+                    detalle=f'Reporte de Recepción vía API {fecha_inicio_str} a {fecha_fin_str}: '
+                            f"{resumen['creadas']} nuevas, {resumen['actualizadas']} actualizadas.",
+                )
                 messages.success(
                     request,
                     f"Sincronizado con ConsultorioWeb: {resumen['creadas']} citas nuevas, "
@@ -492,6 +516,11 @@ def reporte_recepcion_view(request):
             try:
                 filas = leer_reporte_excel(form_upload.cleaned_data['archivo'])
                 resumen = importar_citas(filas)
+                registrar(
+                    request.user, None, RegistroAuditoria.Accion.IMPORTO,
+                    detalle=f'Reporte de Recepción vía Excel: {resumen["creadas"]} nuevas, '
+                            f'{resumen["actualizadas"]} actualizadas.',
+                )
                 messages.success(
                     request,
                     f"Reporte importado desde Excel: {resumen['creadas']} citas nuevas, "
@@ -566,8 +595,7 @@ def donativos_view(request):
             return redirect('finanzas:donativos')
         form_donativo = DonativoForm(request.POST, request.FILES)
         if form_donativo.is_valid():
-            form_donativo.save()
-            messages.success(request, 'Donativo registrado correctamente.')
+            _guardar_con_bitacora(request, form_donativo, 'Donativo registrado correctamente.')
             return redirect('finanzas:donativos')
     else:
         form_donativo = DonativoForm(initial={'fecha': hoy})
@@ -614,14 +642,12 @@ def nomina_academia_view(request):
         if accion == 'maestro':
             form_maestro = MaestroForm(request.POST)
             if form_maestro.is_valid():
-                form_maestro.save()
-                messages.success(request, 'Maestro agregado correctamente.')
+                _guardar_con_bitacora(request, form_maestro, 'Maestro agregado correctamente.')
                 return redirect('finanzas:nomina_academia')
         elif accion == 'tabulador_academia':
             form_tabulador_academia = TabuladorAcademiaForm(request.POST)
             if form_tabulador_academia.is_valid():
-                form_tabulador_academia.save()
-                messages.success(request, 'Tabulador de Academia registrado correctamente.')
+                _guardar_con_bitacora(request, form_tabulador_academia, 'Tabulador de Academia registrado correctamente.')
                 return redirect('finanzas:nomina_academia')
         else:
             form = NominaAcademiaCaptureForm(request.POST)
@@ -693,6 +719,7 @@ def ajustes_view(request):
             try:
                 ajuste = registrar_ajuste(
                     modelo, objeto_id, form.cleaned_data['motivo'], form.cleaned_data['diferencia'],
+                    usuario=request.user,
                 )
                 mensaje = f'Ajuste registrado: {_dinero(ajuste.diferencia)}.'
                 if ajuste.egreso_generado_id:
@@ -718,6 +745,43 @@ def ajustes_view(request):
 
 
 @acceso_finanzas_requerido
+def bitacora_view(request):
+    """Histórico de cambios: quién, cuándo, qué registro, qué campo, y de qué
+    valor a qué valor (sección 9 del documento de requerimientos, "Mantener
+    historico de cambios: usuario, fecha, monto anterior, monto nuevo").
+    Es de solo lectura a propósito — una bitácora que se puede editar no
+    sirve como bitácora."""
+    movimientos = RegistroAuditoria.objects.select_related('usuario', 'content_type')
+
+    desde = _fecha_desde_query(request, 'desde')
+    hasta = _fecha_desde_query(request, 'hasta')
+    tipo = request.GET.get('tipo') or ''
+    if desde:
+        movimientos = movimientos.filter(fecha__date__gte=desde)
+    if hasta:
+        movimientos = movimientos.filter(fecha__date__lte=hasta)
+    if tipo:
+        movimientos = movimientos.filter(content_type_id=tipo)
+
+    # Solo se ofrecen como filtro los tipos que de verdad aparecen en la
+    # bitácora; un selector con los 30 modelos del proyecto no ayudaría.
+    tipos = ContentType.objects.filter(
+        id__in=RegistroAuditoria.objects.values('content_type_id').distinct()
+    ).order_by('model')
+
+    contexto = {
+        'vista_actual': 'bitacora',
+        'movimientos': movimientos[:200],
+        'total': movimientos.count(),
+        'tipos': tipos,
+        'tipo_elegido': tipo,
+        'desde': request.GET.get('desde', ''),
+        'hasta': request.GET.get('hasta', ''),
+    }
+    return render(request, 'finanzas/bitacora.html', contexto)
+
+
+@acceso_finanzas_requerido
 def configuracion_view(request):
     """Catálogos administrables sin tocar código: conceptos adicionales de
     Ingreso y categorías adicionales de Egreso. Las opciones base siguen
@@ -730,14 +794,12 @@ def configuracion_view(request):
         if request.POST.get('accion') == 'categoria_egreso':
             form_categoria = CategoriaEgresoForm(request.POST)
             if form_categoria.is_valid():
-                form_categoria.save()
-                messages.success(request, 'Categoría de Egreso agregada correctamente.')
+                _guardar_con_bitacora(request, form_categoria, 'Categoría de Egreso agregada correctamente.')
                 return redirect('finanzas:configuracion')
         else:
             form_concepto = ConceptoIngresoForm(request.POST)
             if form_concepto.is_valid():
-                form_concepto.save()
-                messages.success(request, 'Concepto de Ingreso agregado correctamente.')
+                _guardar_con_bitacora(request, form_concepto, 'Concepto de Ingreso agregado correctamente.')
                 return redirect('finanzas:configuracion')
 
     contexto = {

@@ -374,6 +374,16 @@ class Ajuste(models.Model):
     registro = GenericForeignKey('content_type', 'object_id')
     motivo = models.CharField(max_length=255)
     diferencia = models.DecimalField(max_digits=10, decimal_places=2)
+    # El documento (sección 9, "Reglas clave") pide mantener histórico de
+    # cambios con usuario, fecha, monto anterior y monto nuevo. `diferencia`
+    # sola no basta: sin el par anterior/nuevo no se puede reconstruir contra
+    # qué se comparó el ajuste si el registro original se sigue moviendo.
+    monto_anterior = models.DecimalField(max_digits=10, decimal_places=2, editable=False, default=Decimal('0'))
+    monto_nuevo = models.DecimalField(max_digits=10, decimal_places=2, editable=False, default=Decimal('0'))
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, editable=False, related_name='ajustes_registrados',
+    )
     egreso_generado = models.OneToOneField(
         Egreso, null=True, blank=True, on_delete=models.SET_NULL,
         editable=False, related_name='ajuste_origen',
