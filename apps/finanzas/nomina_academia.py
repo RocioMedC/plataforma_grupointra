@@ -7,6 +7,10 @@ from .duplicados import DuplicadoError, existe_duplicado
 from .models import ConceptoNominaAcademia, Egreso, NominaAcademia
 
 
+class NominaAcademiaError(Exception):
+    """No se pudo capturar la nómina (validación de negocio, no un error técnico)."""
+
+
 @transaction.atomic
 def capturar_nomina_academia(
     maestro, periodo_mes, periodo_anio, metodo_pago, cantidades,
@@ -32,7 +36,18 @@ def capturar_nomina_academia(
 
     for concepto, cantidad in cantidades.items():
         if cantidad:
-            ConceptoNominaAcademia(nomina=nomina, concepto=concepto, cantidad=cantidad).save()
+            linea = ConceptoNominaAcademia(nomina=nomina, concepto=concepto, cantidad=cantidad)
+            linea.save()
+            if linea.tabulador is None:
+                # Sin esto, la línea se guardaba con tarifa/subtotal $0 sin
+                # ningún aviso, y como capturar_nomina_academia solo genera
+                # Egreso para subtotal > 0, ese concepto simplemente
+                # desaparecía del pago sin que nadie se enterara.
+                raise NominaAcademiaError(
+                    f'No hay un tabulador vigente para "{linea.get_concepto_display()}" en '
+                    f'{periodo_mes}/{periodo_anio}. Registra un tabulador de Academia con '
+                    '"Vigente desde" en o antes del día 1 de ese mes antes de capturar esta nómina.'
+                )
 
     if concepto_manual_descripcion and concepto_manual_monto:
         ConceptoNominaAcademia(

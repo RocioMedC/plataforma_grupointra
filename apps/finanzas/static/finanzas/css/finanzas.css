@@ -190,6 +190,23 @@ table.fin-table tfoot td { padding: 14px 16px; font-weight: 700; }
 .fin-cat-B { background: #EAF1FB; color: #2D5F8B; }
 .fin-cat-C { background: #F3F5F9; color: #5A6472; }
 
+/* Edición inline del estatus de una fila (Ingresos, Egresos, Honorarios,
+   Donativos) sin salir de la tabla ni ir a /admin/. */
+.fin-estatus-form { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.fin-estatus-form select.fin-estatus-select {
+  font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 20px;
+  border: 1px solid #D7DDE8; background: #fff; color: #1B2C4F; cursor: pointer;
+}
+.fin-estatus-form input.fin-estatus-monto {
+  width: 78px; font-size: 11px; padding: 3px 6px; border-radius: 6px;
+  border: 1px solid #D7DDE8; color: #1B2C4F;
+}
+.fin-estatus-save {
+  font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 6px;
+  border: 1px solid #D7DDE8; background: #fff; color: #2D5F8B; cursor: pointer;
+}
+.fin-estatus-save:hover { background: #EAF1FB; }
+
 /* ===== Nómina semanal: botón real, filtros, mensajes ===== */
 .fin-btn-primary.fin-btn-activo { cursor: pointer; }
 .fin-btn-primary.fin-btn-activo:disabled { opacity: .5; cursor: not-allowed; }

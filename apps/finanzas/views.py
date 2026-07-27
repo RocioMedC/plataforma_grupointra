@@ -1,6 +1,6 @@
 import csv
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from functools import wraps
 
 from django.conf import settings
@@ -28,9 +28,9 @@ from .integraciones.importador_recepcion import importar_citas
 from .integraciones.reporte_recepcion import ReporteRecepcionError, leer_reporte_api, leer_reporte_excel
 from .models import (
     Ajuste, CategoriaEgreso, CitaRecepcion, ConceptoIngreso, Donativo, Egreso,
-    Honorario, Ingreso, NominaAcademia,
+    Honorario, Ingreso, Maestro, NominaAcademia, TabuladorAcademia,
 )
-from .nomina_academia import capturar_nomina_academia
+from .nomina_academia import NominaAcademiaError, capturar_nomina_academia
 from .pdfs import render_pdf
 from .reportes_nomina import resumen_nomina_semanal
 
@@ -59,6 +59,21 @@ def acceso_finanzas_requerido(vista):
             raise PermissionDenied
         return vista(request, *args, **kwargs)
     return wrapper
+
+
+def _actualizar_estatus_simple(request, modelo, campo_estatus, valores_validos):
+    """Cambia el campo de estatus de un registro ya existente (Egreso,
+    Honorario o Donativo) desde un control inline en la tabla, sin pasar por
+    /admin/. `valores_validos` es el conjunto de choices válidos del campo;
+    cualquier otro valor se rechaza en vez de guardarse a ciegas."""
+    obj = get_object_or_404(modelo, pk=request.POST.get('id'))
+    valor = request.POST.get(campo_estatus)
+    if valor not in valores_validos:
+        messages.error(request, 'Estatus inválido.')
+        return
+    setattr(obj, campo_estatus, valor)
+    obj.save(update_fields=[campo_estatus])
+    messages.success(request, 'Estatus actualizado correctamente.')
 
 
 def _suma(queryset, campo='monto'):
@@ -261,6 +276,23 @@ def ingresos_view(request):
     hoy = timezone.now().date()
 
     if request.method == 'POST':
+        if request.POST.get('accion') == 'estatus':
+            ingreso = get_object_or_404(Ingreso, pk=request.POST.get('id'))
+            estatus = request.POST.get('estatus')
+            try:
+                monto_pagado = Decimal(request.POST.get('monto_pagado') or '0')
+            except InvalidOperation:
+                monto_pagado = Decimal('0')
+            if estatus not in Ingreso.Estatus.values:
+                messages.error(request, 'Estatus inválido.')
+            elif estatus == Ingreso.Estatus.PARCIAL and monto_pagado > ingreso.monto:
+                messages.error(request, 'Lo cobrado no puede ser mayor que el monto total.')
+            else:
+                ingreso.estatus = estatus
+                ingreso.monto_pagado = monto_pagado if estatus == Ingreso.Estatus.PARCIAL else Decimal('0')
+                ingreso.save(update_fields=['estatus', 'monto_pagado'])
+                messages.success(request, 'Estatus actualizado correctamente.')
+            return redirect('finanzas:ingresos')
         form_ingreso = IngresoForm(request.POST)
         if form_ingreso.is_valid():
             form_ingreso.save()
@@ -286,6 +318,7 @@ def ingresos_view(request):
         'stats': stats,
         'ingresos': Ingreso.objects.select_related('terapeuta').order_by('-fecha')[:200],
         'form_ingreso': form_ingreso,
+        'estatus_choices': Ingreso.Estatus.choices,
     }
     return render(request, 'finanzas/ingresos.html', contexto)
 
@@ -312,6 +345,12 @@ def honorarios_view(request):
                 form_honorario.save()
                 messages.success(request, 'Honorario registrado correctamente.')
                 return redirect('finanzas:honorarios')
+        elif accion == 'estatus_honorario':
+            _actualizar_estatus_simple(request, Honorario, 'estatus', Honorario.Estatus.values)
+            return redirect('finanzas:honorarios')
+        elif accion == 'estatus_egreso':
+            _actualizar_estatus_simple(request, Egreso, 'estatus', Egreso.Estatus.values)
+            return redirect('finanzas:honorarios')
         else:
             form_egreso = EgresoForm(request.POST)
             if form_egreso.is_valid():
@@ -334,6 +373,8 @@ def honorarios_view(request):
         'form_egreso': form_egreso,
         'form_tabulador': form_tabulador,
         'form_honorario': form_honorario,
+        'honorario_estatus_choices': Honorario.Estatus.choices,
+        'egreso_estatus_choices': Egreso.Estatus.choices,
     }
     return render(request, 'finanzas/honorarios.html', contexto)
 
@@ -351,11 +392,13 @@ def nomina_view(request):
             cortes_por_id = {str(c['id']): c for c in cortes_importables(cortes_raw)}
             seleccionados = [cortes_por_id[i] for i in ids_seleccionados if i in cortes_por_id]
             resumen = importar_cortes(seleccionados)
-            messages.success(
-                request,
+            mensaje = (
                 f"Se importaron {resumen['creados']} movimientos a Egresos "
-                f"({resumen['omitidos']} cortes ya estaban importados y se omitieron).",
+                f"({resumen['omitidos']} cortes ya estaban importados y se omitieron)."
             )
+            if resumen['con_error']:
+                mensaje += f" {resumen['con_error']} corte(s) se omitieron por datos inesperados."
+            messages.success(request, mensaje)
         except ConsultorioWebError as exc:
             messages.error(request, str(exc))
         return redirect(f"{reverse('finanzas:nomina')}?fecha_inicio={fecha_inicio}&fecha_fin={fecha_fin}")
@@ -457,6 +500,14 @@ def reporte_recepcion_view(request):
                 )
             except ReporteRecepcionError as exc:
                 messages.error(request, str(exc))
+            return redirect('finanzas:reporte_recepcion')
+        # Formulario inválido (ej. archivo que no es .xlsx): antes esto
+        # redirigía igual sin mostrar ningún error, y el usuario veía la
+        # pantalla exactamente igual que antes de intentar subir el archivo.
+        messages.error(
+            request,
+            form_upload.errors.get('archivo', ['No se pudo subir el archivo.'])[0],
+        )
         return redirect('finanzas:reporte_recepcion')
 
     form_upload = ReporteRecepcionUploadForm()
@@ -510,6 +561,9 @@ def donativos_view(request):
     hoy = timezone.now().date()
 
     if request.method == 'POST':
+        if request.POST.get('accion') == 'estatus_donativo':
+            _actualizar_estatus_simple(request, Donativo, 'estatus_cfdi', Donativo.EstatusCFDI.values)
+            return redirect('finanzas:donativos')
         form_donativo = DonativoForm(request.POST, request.FILES)
         if form_donativo.is_valid():
             form_donativo.save()
@@ -537,6 +591,7 @@ def donativos_view(request):
         'stats': stats,
         'donativos': Donativo.objects.order_by('-fecha')[:200],
         'form_donativo': form_donativo,
+        'estatus_cfdi_choices': Donativo.EstatusCFDI.choices,
     }
     return render(request, 'finanzas/donativos.html', contexto)
 
@@ -586,7 +641,7 @@ def nomina_academia_view(request):
                         f"Nómina de Academia capturada: {nomina.maestro} · "
                         f"{nomina.periodo_mes}/{nomina.periodo_anio} · total {_dinero(nomina.total)}.",
                     )
-                except DuplicadoError as exc:
+                except (DuplicadoError, NominaAcademiaError) as exc:
                     messages.error(request, str(exc))
                 return redirect('finanzas:nomina_academia')
 
@@ -601,6 +656,8 @@ def nomina_academia_view(request):
         'form_maestro': form_maestro,
         'form_tabulador_academia': form_tabulador_academia,
         'nominas': nominas,
+        'maestros': Maestro.objects.order_by('-activo', 'nombre'),
+        'tabuladores_academia': TabuladorAcademia.objects.order_by('concepto', '-vigente_desde'),
     }
     return render(request, 'finanzas/nomina_academia.html', contexto)
 

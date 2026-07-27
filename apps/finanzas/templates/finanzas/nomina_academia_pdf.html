@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <style>
-  @page { size: letter; margin: 1.6cm; }
+  @page { size: letter landscape; margin: 1.6cm; }
   body { font-family: Helvetica, Arial, sans-serif; font-size: 9pt; color: #1B2C4F; }
   .encabezado { width: 100%; margin-bottom: 10px; }
   .encabezado table { width: 100%; }
@@ -17,18 +17,19 @@
   }
   .estatus-pagado { background-color: #1F8A5B; }
   .estatus-pendiente { background-color: #C9622B; }
-  table.fin-pdf-tabla { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  table.fin-pdf-tabla { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
   table.fin-pdf-tabla th {
     background-color: #1B2C4F; color: #fff; text-align: left;
-    padding: 5px 6px; font-size: 8pt;
+    padding: 5px 6px; font-size: 8pt; word-wrap: break-word;
   }
   table.fin-pdf-tabla td {
     padding: 5px 6px; border-bottom: 1px solid #E6EAF2; font-size: 8.5pt;
+    word-wrap: break-word; overflow-wrap: break-word;
   }
   table.fin-pdf-tabla td.num { text-align: right; }
   table.fin-pdf-tabla tfoot td { font-weight: bold; border-top: 2px solid #1B2C4F; }
   .fin-pdf-totales { width: 100%; margin-top: 14px; }
-  .fin-pdf-totales table { width: 100%; border-collapse: collapse; }
+  .fin-pdf-totales table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .fin-pdf-totales td {
     background-color: #F3F5FA; padding: 8px; text-align: center;
     border: 1px solid #E6EAF2;

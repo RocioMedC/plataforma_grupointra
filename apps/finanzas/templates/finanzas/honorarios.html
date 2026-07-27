@@ -44,7 +44,19 @@
             <td style="text-align:center;">{{ h.num_pacientes }}</td>
             <td class="num" style="color:{% if h.bono %}#1F8A5B{% else %}#9AA2B1{% endif %};">{{ h.bono|dinero }}</td>
             <td class="num">{{ h.total|dinero }}</td>
-            <td><span class="fin-badge fin-badge-{{ h.estatus }}">{{ h.get_estatus_display }}</span></td>
+            <td>
+              <form method="post" class="fin-estatus-form">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="estatus_honorario">
+                <input type="hidden" name="id" value="{{ h.id }}">
+                <select name="estatus" class="fin-estatus-select">
+                  {% for valor, etiqueta in honorario_estatus_choices %}
+                  <option value="{{ valor }}" {% if valor == h.estatus %}selected{% endif %}>{{ etiqueta }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="fin-estatus-save">Guardar</button>
+              </form>
+            </td>
           </tr>
           {% empty %}
           <tr><td colspan="7" class="fin-empty">Todavía no hay honorarios calculados este mes. Se registran desde /admin/.</td></tr>
@@ -88,7 +100,19 @@
             <td>{{ e.persona|default:"—" }}</td>
             <td class="num">{{ e.monto|dinero }}</td>
             <td>{{ e.get_metodo_pago_display|default:"—" }}</td>
-            <td><span class="fin-badge fin-badge-{{ e.estatus }}">{{ e.get_estatus_display }}</span></td>
+            <td>
+              <form method="post" class="fin-estatus-form">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="estatus_egreso">
+                <input type="hidden" name="id" value="{{ e.id }}">
+                <select name="estatus" class="fin-estatus-select">
+                  {% for valor, etiqueta in egreso_estatus_choices %}
+                  <option value="{{ valor }}" {% if valor == e.estatus %}selected{% endif %}>{{ etiqueta }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="fin-estatus-save">Guardar</button>
+              </form>
+            </td>
             <td>{{ e.fecha|date:"d M" }}</td>
           </tr>
           {% empty %}

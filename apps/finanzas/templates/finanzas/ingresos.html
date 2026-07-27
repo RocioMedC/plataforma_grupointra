@@ -45,7 +45,20 @@
             {% elif row.estatus == 'parcial' %}{{ row.monto_pagado|dinero }}
             {% else %}—{% endif %}
           </td>
-          <td><span class="fin-badge fin-badge-{{ row.estatus }}">{{ row.get_estatus_display }}</span></td>
+          <td>
+            <form method="post" class="fin-estatus-form">
+              {% csrf_token %}
+              <input type="hidden" name="accion" value="estatus">
+              <input type="hidden" name="id" value="{{ row.id }}">
+              <select name="estatus" class="fin-estatus-select">
+                {% for valor, etiqueta in estatus_choices %}
+                <option value="{{ valor }}" {% if valor == row.estatus %}selected{% endif %}>{{ etiqueta }}</option>
+                {% endfor %}
+              </select>
+              <input type="number" step="0.01" min="0" name="monto_pagado" value="{{ row.monto_pagado }}" class="fin-estatus-monto" title="Cuánto se ha cobrado ya (solo si es Parcial)" placeholder="Cobrado">
+              <button type="submit" class="fin-estatus-save">Guardar</button>
+            </form>
+          </td>
           <td>{{ row.fecha|date:"d M" }}</td>
         </tr>
         {% empty %}

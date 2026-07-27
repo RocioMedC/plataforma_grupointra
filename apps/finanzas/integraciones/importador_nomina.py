@@ -1,8 +1,11 @@
-from decimal import Decimal
+import logging
+from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
 
 from apps.finanzas.models import Egreso
+
+logger = logging.getLogger(__name__)
 
 # Un corte solo se importa una vez sellado del lado de ConsultorioWeb. La API
 # de origen no filtra por estatus, así que ese filtro vive aquí: nunca se
@@ -61,9 +64,18 @@ def importar_corte(corte):
 
 
 def importar_cortes(cortes):
-    resumen = {'creados': 0, 'omitidos': 0}
+    resumen = {'creados': 0, 'omitidos': 0, 'con_error': 0}
     for corte in cortes:
-        nuevas = importar_corte(corte)
+        try:
+            nuevas = importar_corte(corte)
+        except (KeyError, TypeError, InvalidOperation) as exc:
+            # Un corte con un campo faltante o un monto no numérico no debe
+            # tumbar con un Server Error el resto de la importación: se
+            # omite ese corte (queda disponible para reintentar después de
+            # corregirlo en ConsultorioWeb) y se sigue con los demás.
+            logger.warning('Corte %s omitido por datos inesperados: %s', corte.get('id', '?'), exc)
+            resumen['con_error'] += 1
+            continue
         resumen['creados'] += len(nuevas)
         if not nuevas:
             resumen['omitidos'] += 1

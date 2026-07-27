@@ -1,9 +1,12 @@
+import logging
 from datetime import date, datetime, time
 from decimal import Decimal
 
 import openpyxl
 
 from apps.finanzas.models import CitaRecepcion
+
+logger = logging.getLogger(__name__)
 
 # Este módulo es el punto de entrada de datos: hoy lee el Excel exportado
 # manualmente desde agenda.intra.org.mx/reporte-general/. Si esa plataforma
@@ -76,7 +79,17 @@ def _hora(valor):
         return valor.time()
     if isinstance(valor, time):
         return valor
-    return datetime.strptime(_texto(valor), '%H:%M').time()
+    texto = _texto(valor)
+    # El Excel trae 'HH:MM'; la API de ConsultorioWeb puede serializar la
+    # hora con segundos ('HH:MM:SS') si usa time.isoformat() del lado del
+    # servidor — aceptar ambas evita que una sola cita con ese formato tumbe
+    # toda la sincronización.
+    for formato in ('%H:%M', '%H:%M:%S'):
+        try:
+            return datetime.strptime(texto, formato).time()
+        except ValueError:
+            continue
+    raise ReporteRecepcionError(f"Hora con formato inesperado: '{valor}'.")
 
 
 def _costo(valor):
@@ -96,20 +109,35 @@ def leer_reporte_api(fecha_inicio=None, fecha_fin=None):
 
     citas_raw = obtener_citas_recepcion(fecha_inicio, fecha_fin)
     citas = []
+    citas_con_error = []
     for cita in citas_raw:
-        citas.append({
-            'fecha': _fecha(cita['fecha']),
-            'hora': _hora(cita['hora']),
-            'tipo_cita': _texto(cita.get('tipo_cita')),
-            'paciente': _texto(cita.get('paciente')),
-            'terapeuta': _texto(cita.get('terapeuta')),
-            'servicio': _texto(cita.get('servicio')),
-            'division': _texto(cita.get('division')),
-            'consultorio': _texto(cita.get('consultorio')),
-            'estatus': _estatus(cita.get('estatus')),
-            'metodo_pago': _metodo_pago(cita.get('metodo_pago')),
-            'costo': _costo(cita.get('costo')),
-        })
+        try:
+            citas.append({
+                'fecha': _fecha(cita.get('fecha')),
+                'hora': _hora(cita.get('hora')),
+                'tipo_cita': _texto(cita.get('tipo_cita')),
+                'paciente': _texto(cita.get('paciente')),
+                'terapeuta': _texto(cita.get('terapeuta')),
+                'servicio': _texto(cita.get('servicio')),
+                'division': _texto(cita.get('division')),
+                'consultorio': _texto(cita.get('consultorio')),
+                'estatus': _estatus(cita.get('estatus')),
+                'metodo_pago': _metodo_pago(cita.get('metodo_pago')),
+                'costo': _costo(cita.get('costo')),
+            })
+        except (ReporteRecepcionError, ValueError, TypeError, KeyError) as exc:
+            # Una sola cita con un dato inesperado no debe tumbar con un
+            # Server Error toda la sincronización: se omite esa cita y se
+            # sigue con el resto; el resumen final avisa cuántas se omitieron.
+            citas_con_error.append((cita.get('id', '?'), str(exc)))
+    if citas_con_error:
+        logger.warning('Se omitieron %d cita(s) de ConsultorioWeb por datos inesperados: %s',
+                        len(citas_con_error), citas_con_error[:10])
+    if citas_con_error and not citas:
+        # Ninguna cita se pudo interpretar: ahí sí vale la pena detener todo
+        # y avisar, en vez de "sincronizar" 0 citas en silencio.
+        detalle = '; '.join(f'cita {cid}: {err}' for cid, err in citas_con_error[:5])
+        raise ReporteRecepcionError(f'No se pudo importar ninguna cita: {detalle}')
     return citas
 
 

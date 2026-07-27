@@ -52,6 +52,15 @@ class IngresoForm(forms.ModelForm):
         self.fields['terapeuta'].required = False
         self.fields['monto_pagado'].required = False
 
+    def _get_validation_exclusions(self):
+        # Sin esto, Django revalida 'concepto' en Model.full_clean() contra
+        # las choices FIJAS del modelo (Ingreso.Concepto), ignorando las
+        # opciones agregadas desde Configuración que sí acabamos de aceptar
+        # arriba — el resultado era que un concepto agregado en Configuración
+        # aparecía en el selector pero el formulario lo rechazaba igual con
+        # "Select a valid choice" al intentar guardarlo.
+        return super()._get_validation_exclusions() | {'concepto'}
+
     def clean_monto(self):
         monto = self.cleaned_data['monto']
         if monto <= Decimal('0'):
@@ -200,7 +209,9 @@ class NominaAcademiaCaptureForm(forms.Form):
                 'Captura al menos un concepto (horas clase, supervisión, mesa de trabajo, o un concepto manual con descripción y monto).'
             )
         if bool(manual_desc) != bool(manual_monto):
-            raise forms.ValidationError('El concepto manual necesita descripción y monto, los dos.')
+            raise forms.ValidationError(
+                'El concepto manual autorizado y el monto del concepto manual deben contar con una descripción.'
+            )
         return datos
 
     def cantidades(self):
@@ -300,6 +311,14 @@ class EgresoForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['categoria'].choices = _opciones_categoria_egreso()
+
+    def _get_validation_exclusions(self):
+        # Mismo problema y misma razón que IngresoForm._get_validation_exclusions:
+        # sin esto, una categoría agregada desde Configuración aparecía en el
+        # selector pero el formulario la rechazaba con "Select a valid choice"
+        # porque Model.full_clean() revalidaba contra las choices fijas de
+        # Egreso.Categoria.
+        return super()._get_validation_exclusions() | {'categoria'}
 
     def clean_monto(self):
         monto = self.cleaned_data['monto']

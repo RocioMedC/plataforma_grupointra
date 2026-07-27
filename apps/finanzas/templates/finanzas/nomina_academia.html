@@ -20,6 +20,60 @@
 
   <div class="fin-card fin-table-card">
     <div class="fin-table-toolbar">
+      <div class="fin-card-title">Maestros dados de alta</div>
+    </div>
+    <div class="fin-table-wrap">
+      <table class="fin-table">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Estatus</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in maestros %}
+          <tr>
+            <td>{{ m.nombre }}</td>
+            <td><span class="fin-badge {% if m.activo %}fin-badge-pagado{% else %}fin-badge-cancelado{% endif %}">{% if m.activo %}Activo{% else %}Inactivo{% endif %}</span></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="2" class="fin-empty">Todavía no hay maestros dados de alta.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="fin-card fin-table-card">
+    <div class="fin-table-toolbar">
+      <div class="fin-card-title">Tabuladores de Academia vigentes</div>
+    </div>
+    <div class="fin-table-wrap">
+      <table class="fin-table">
+        <thead>
+          <tr>
+            <th>Concepto</th>
+            <th class="num">Monto por unidad</th>
+            <th>Vigente desde</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tabuladores_academia %}
+          <tr>
+            <td>{{ t.get_concepto_display }}</td>
+            <td class="num">{{ t.monto_unidad|dinero }}</td>
+            <td>{{ t.vigente_desde|date:"d M Y" }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" class="fin-empty">Todavía no hay tabuladores de Academia registrados.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="fin-card fin-table-card">
+    <div class="fin-table-toolbar">
       <div class="fin-card-title">Nóminas de Academia capturadas</div>
     </div>
     <div class="fin-table-wrap">

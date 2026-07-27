@@ -83,6 +83,9 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Evita que "atrás" del navegador muestre páginas protegidas ya
+    # renderizadas después de cerrar sesión (ver apps/core/middleware.py).
+    'apps.core.middleware.NoCacheMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -191,6 +194,14 @@ SECURE_HSTS_SECONDS = int(os.environ.get(
 ))
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
+
+# Cierre de sesión por inactividad: SESSION_SAVE_EVERY_REQUEST hace que cada
+# request activo reinicie el conteo de SESSION_COOKIE_AGE, así que son 30
+# minutos de INACTIVIDAD (no 30 minutos fijos desde el login). Configurable
+# vía variable de entorno si Administración pide otro umbral.
+SESSION_COOKIE_AGE = int(os.environ.get('SESSION_COOKIE_AGE', '1800'))
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'

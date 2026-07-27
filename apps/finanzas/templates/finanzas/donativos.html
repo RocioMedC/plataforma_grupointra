@@ -43,7 +43,19 @@
             <td>{{ d.get_tipo_display }}</td>
             <td class="num">{{ d.monto|dinero }}</td>
             <td>{{ d.folio_cfdi|default:"—" }}</td>
-            <td><span class="fin-badge fin-badge-{{ d.estatus_cfdi }}">{{ d.get_estatus_cfdi_display }}</span></td>
+            <td>
+              <form method="post" class="fin-estatus-form">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="estatus_donativo">
+                <input type="hidden" name="id" value="{{ d.id }}">
+                <select name="estatus_cfdi" class="fin-estatus-select">
+                  {% for valor, etiqueta in estatus_cfdi_choices %}
+                  <option value="{{ valor }}" {% if valor == d.estatus_cfdi %}selected{% endif %}>{{ etiqueta }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="fin-estatus-save">Guardar</button>
+              </form>
+            </td>
             <td>
               {% if d.archivo_xml %}<a href="{{ d.archivo_xml.url }}" class="fin-doc-badge fin-doc-xml">XML</a>{% endif %}
               {% if d.archivo_pdf %}<a href="{{ d.archivo_pdf.url }}" class="fin-doc-badge fin-doc-pdf">PDF</a>{% endif %}
