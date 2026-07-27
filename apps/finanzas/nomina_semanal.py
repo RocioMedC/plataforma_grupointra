@@ -21,6 +21,7 @@ from apps.core.auditoria.registro import registrar
 
 from .integraciones.consultorioweb import obtener_cortes_semanales
 from .models import CitaRecepcion, Egreso, LineaNominaSemanal, NominaSemanal
+from .textos import concepto_egreso
 
 logger = logging.getLogger(__name__)
 
@@ -210,7 +211,7 @@ def sellar_linea(linea, usuario=None):
         if monto <= 0:
             continue
         creados.append(Egreso.objects.create(
-            concepto=f'{etiqueta} · {linea.persona} · {periodo}',
+            concepto=concepto_egreso(f'{etiqueta} · {linea.persona} · {periodo}'),
             categoria=categoria,
             persona=linea.persona,
             monto=monto,

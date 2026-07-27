@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
 import dj_database_url
@@ -202,6 +203,39 @@ CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_AGE = int(os.environ.get('SESSION_COOKIE_AGE', '1800'))
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# Errores visibles en producción.
+#
+# Por omisión, el handler de consola de Django está filtrado por
+# `require_debug_true`, así que con DEBUG=False los tracebacks de un error
+# 500 no llegan a ningún lado: el usuario ve "Server Error (500)" y en los
+# logs de Railway no aparece absolutamente nada. Esto los manda a stderr,
+# que es lo que Railway captura.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'detallado': {
+            'format': '[{asctime}] {levelname} {name}: {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'consola': {
+            'class': 'logging.StreamHandler',
+            'stream': sys.stderr,
+            'formatter': 'detallado',
+        },
+    },
+    'loggers': {
+        # Incluye el traceback completo de cualquier excepción no atrapada.
+        'django.request': {'handlers': ['consola'], 'level': 'ERROR', 'propagate': False},
+        'django': {'handlers': ['consola'], 'level': 'WARNING', 'propagate': False},
+        # Los avisos propios (cortes omitidos, fallos de la bitácora,
+        # timeouts de ConsultorioWeb) que hoy se escribían al vacío.
+        'apps': {'handlers': ['consola'], 'level': 'INFO', 'propagate': False},
+    },
+}
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'

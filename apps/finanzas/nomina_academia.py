@@ -10,6 +10,7 @@ from apps.core.auditoria.registro import registrar
 
 from .duplicados import DuplicadoError, existe_duplicado
 from .models import ConceptoNominaAcademia, Egreso, NominaAcademia
+from .textos import concepto_egreso
 
 
 class NominaAcademiaError(Exception):
@@ -94,7 +95,9 @@ def sellar_nomina_academia(nomina, usuario=None, fecha_pago=None):
         if linea.descripcion:
             etiqueta = f'{etiqueta} · {linea.descripcion}'
         Egreso.objects.create(
-            concepto=f'{etiqueta} · {nomina.maestro} · {nomina.periodo_mes}/{nomina.periodo_anio}',
+            concepto=concepto_egreso(
+                f'{etiqueta} · {nomina.maestro} · {nomina.periodo_mes}/{nomina.periodo_anio}'
+            ),
             categoria=Egreso.Categoria.NOMINA_ACADEMIA,
             persona=nomina.maestro.nombre,
             monto=linea.subtotal,

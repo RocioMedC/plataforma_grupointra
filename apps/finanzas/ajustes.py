@@ -8,6 +8,7 @@ from apps.core.auditoria.models import RegistroAuditoria
 from apps.core.auditoria.registro import registrar
 
 from .models import Ajuste, Egreso, Honorario, NominaAcademia
+from .textos import concepto_egreso
 
 
 class AjusteError(Exception):
@@ -65,7 +66,7 @@ def registrar_ajuste(modelo, objeto_id, motivo, diferencia, usuario=None):
     if diferencia > 0:
         persona, categoria, fecha, metodo_pago = _datos_egreso(registro)
         egreso = Egreso.objects.create(
-            concepto=f'Ajuste: {motivo} (ref. {registro})',
+            concepto=concepto_egreso(f'Ajuste: {motivo} (ref. {registro})'),
             categoria=categoria,
             persona=persona,
             monto=diferencia,
