@@ -13,6 +13,21 @@ Contexto: los 10 criterios de aceptación de la **sección 8** ya estaban cubier
 
 ---
 
+## 0. Estado: Fases 0 a 5 completadas (2026-07-26)
+
+**16 de los 17 huecos resueltos; el 17º (F7) se descartó porque no era un hueco.** 191 verificaciones automatizadas en verde, repartidas en 5 suites por fase. Commits: `2ad499d` (QA previo), `977ff9c` (F1), `83467cf` (F2), `e860ccd` (F3), `325cecc` (F4), `42f63d7` (F5).
+
+Falta únicamente la **Fase 6**: prueba manual en el navegador (checklist entregada aparte) y despliegue a Railway, ambos pendientes de la confirmación del usuario.
+
+### Desviaciones respecto al plan original (y por qué)
+
+1. **Sellar NO exige método de pago.** El plan decía que `sellar_periodo` fallara si a alguna línea le faltaba el método. Al revisar la captura de referencia de la pág. 6 quedó claro que "Pendiente" **es** un método válido en una nómina ya sellada — de hecho el ejemplo del documento está sellado con $7,037.50 pendiente por dispersar y $0.00 en transferencia y efectivo, justamente porque esas filas están en "Pendiente". Exigirlo habría contradicho el documento.
+2. **`LineaNominaSemanal.montos_editados`** (no estaba en el plan). Sin esta bandera, corregir un monto en el borrador y volver a sincronizar hacía que ConsultorioWeb pisara la corrección sin avisar. Lo detectó la prueba de la Fase 2.
+3. **F17 se resuelve con confirmación, no con bloqueo duro.** Dos gastos idénticos el mismo día existen de verdad; bloquear en seco dejaba al usuario atorado. Se usa la otra salida que el propio documento contempla ("bloquear una segunda generacion de egreso **o pedir confirmacion**").
+4. **F7 descartado** tras confirmar con Jesús que vale de gasolina y bono son el mismo concepto (ver D5).
+
+---
+
 ## 1. Diagnóstico: qué falta exactamente
 
 ### 🔴 Fallas funcionales (rompen números que ya se muestran)
@@ -75,89 +90,89 @@ Para no tocar un segundo repo la víspera de la presentación, la pantalla de N�
 ## 3. Fases
 
 ### Fase 0 — Preparación (30 min)
-- [ ] Commitear el trabajo pendiente en el árbol (13 archivos: correcciones de QA, `apps/core/middleware.py`, expiración de sesión). Va como commit propio antes de empezar, para que el refactor no se mezcle con esas correcciones.
-- [ ] Confirmar que `python manage.py migrate` corre limpio y el servidor levanta.
-- [ ] Limpiar datos de prueba que el flujo nuevo va a regenerar: `Egreso.objects.filter(referencia_externa__startswith='consultorioweb:').delete()`. Se hace con un script en el scratchpad, no con un comando de management (es de una sola vez).
+- [x] Commitear el trabajo pendiente en el árbol (13 archivos: correcciones de QA, `apps/core/middleware.py`, expiración de sesión). Va como commit propio antes de empezar, para que el refactor no se mezcle con esas correcciones.
+- [x] Confirmar que `python manage.py migrate` corre limpio y el servidor levanta.
+- [x] Limpiar datos de prueba que el flujo nuevo va a regenerar: `Egreso.objects.filter(referencia_externa__startswith='consultorioweb:').delete()`. Se hace con un script en el scratchpad, no con un comando de management (es de una sola vez).
 
 ### Fase 1 — Auditoría e historial de cambios (F2) — *base de todo lo demás*
 **`apps/core/auditoria/models.py`** (nuevo)
-- [ ] Modelo `RegistroAuditoria`: `usuario` (FK a `AUTH_USER_MODEL`, `SET_NULL`), `fecha` (`auto_now_add`), `content_type` + `object_id` + `registro` (generic FK), `descripcion_objeto` (CharField — copia del `str()` al momento del cambio, para que la bitácora siga siendo legible si el registro se borra), `accion` (creó / modificó / selló / ajustó / importó), `campo`, `valor_anterior`, `valor_nuevo` (CharField, ambos opcionales). Índice por `fecha` y por `content_type+object_id`.
-- [ ] Migración `apps/core/migrations/0002_registroauditoria.py`.
+- [x] Modelo `RegistroAuditoria`: `usuario` (FK a `AUTH_USER_MODEL`, `SET_NULL`), `fecha` (`auto_now_add`), `content_type` + `object_id` + `registro` (generic FK), `descripcion_objeto` (CharField — copia del `str()` al momento del cambio, para que la bitácora siga siendo legible si el registro se borra), `accion` (creó / modificó / selló / ajustó / importó), `campo`, `valor_anterior`, `valor_nuevo` (CharField, ambos opcionales). Índice por `fecha` y por `content_type+object_id`.
+- [x] Migración `apps/core/migrations/0002_registroauditoria.py`.
 
 **`apps/core/auditoria/registro.py`** (nuevo)
-- [ ] `registrar(usuario, objeto, accion, campo='', anterior='', nuevo='')` — helper único. Nunca lanza excepción hacia arriba: si la auditoría falla, se registra en el log pero **no tumba la operación de negocio**.
-- [ ] `historial_de(objeto)` — consulta para pintar el historial de un registro.
+- [x] `registrar(usuario, objeto, accion, campo='', anterior='', nuevo='')` — helper único. Nunca lanza excepción hacia arriba: si la auditoría falla, se registra en el log pero **no tumba la operación de negocio**.
+- [x] `historial_de(objeto)` — consulta para pintar el historial de un registro.
 
 **Enganchar el helper** (todas las escrituras que cambian dinero o estado):
-- [ ] `views.py::_actualizar_estatus_simple` — estatus de Egreso, Honorario, Donativo.
-- [ ] `views.py::ingresos_view` — cambio de estatus / `monto_pagado` de Ingreso.
-- [ ] Sellado de líneas y de periodo (Fase 2).
-- [ ] `ajustes.py::registrar_ajuste`.
-- [ ] `nomina_academia.py::capturar_nomina_academia` y el sellado de Academia (Fase 4).
-- [ ] Importación/sincronización (un registro por corrida, con el resumen, no uno por fila).
+- [x] `views.py::_actualizar_estatus_simple` — estatus de Egreso, Honorario, Donativo.
+- [x] `views.py::ingresos_view` — cambio de estatus / `monto_pagado` de Ingreso.
+- [x] Sellado de líneas y de periodo (Fase 2).
+- [x] `ajustes.py::registrar_ajuste`.
+- [x] `nomina_academia.py::capturar_nomina_academia` y el sellado de Academia (Fase 4).
+- [x] Importación/sincronización (un registro por corrida, con el resumen, no uno por fila).
 
 **`Ajuste` mejorado**
-- [ ] Agregar campos `usuario` (FK, `SET_NULL`), `monto_anterior`, `monto_nuevo` (calculados al registrar: anterior = total del registro original, nuevo = anterior + diferencia). `diferencia` se conserva.
-- [ ] `registrar_ajuste()` recibe `usuario` y lo guarda.
-- [ ] `AjusteForm` / `ajustes_view` pasan `request.user`.
-- [ ] Migración.
+- [x] Agregar campos `usuario` (FK, `SET_NULL`), `monto_anterior`, `monto_nuevo` (calculados al registrar: anterior = total del registro original, nuevo = anterior + diferencia). `diferencia` se conserva.
+- [x] `registrar_ajuste()` recibe `usuario` y lo guarda.
+- [x] `AjusteForm` / `ajustes_view` pasan `request.user`.
+- [x] Migración.
 
 **Pantalla de bitácora**
-- [ ] Vista `bitacora_view` (`finanzas/bitacora/`) protegida por `acceso_finanzas_requerido`: tabla de últimos 200 movimientos (fecha, usuario, acción, registro, campo, antes → después), con filtro por rango de fechas y por tipo de registro. Liga en el sidebar de `_base.html`.
+- [x] Vista `bitacora_view` (`finanzas/bitacora/`) protegida por `acceso_finanzas_requerido`: tabla de últimos 200 movimientos (fecha, usuario, acción, registro, campo, antes → después), con filtro por rango de fechas y por tipo de registro. Liga en el sidebar de `_base.html`.
 
 ### Fase 2 — Nómina semanal con cabecera, estados y sellado (F1, F4, F5, F6, F7, F8, F9, F10, F11)
 Es la fase más grande. Todo lo demás depende poco de ella, así que si se atrasa, se puede terminar sola.
 
 **Modelos nuevos (`apps/finanzas/models.py`)**
-- [ ] `NominaSemanal`: `tipo` (semanal / quincenal / administrativa), `fecha_inicio`, `fecha_fin`, `fecha_pago` (opcional hasta sellar), `estado` (borrador / sellado), `usuario_genera` (FK, `SET_NULL`), `sellada_en`, `creado_en`. `unique_together = (tipo, fecha_inicio, fecha_fin)` — no se pueden abrir dos nóminas del mismo tipo y periodo.
-- [ ] `LineaNominaSemanal`: `nomina` (FK), `persona`, `tipo_persona` (terapeuta / administrativo), `concepto` (texto, default "Pago a terapeuta"), `citas_atendidas` (int), `ingreso_generado` (decimal, informativo), `pago_base`, `bono`, `vale_gasolina`, `extras` (los 4 separados, D5), `metodo_pago` (transferencia / efectivo / pendiente), `estatus_pago` (pendiente / pagado), `observaciones`, `referencia_corte` (id del corte de ConsultorioWeb, para dedupe), `sellada` (bool), `sellada_en`, `detalle_json` (el `detalles` de la API, para el "Ver detalle"). `unique_together = (nomina, persona)`.
+- [x] `NominaSemanal`: `tipo` (semanal / quincenal / administrativa), `fecha_inicio`, `fecha_fin`, `fecha_pago` (opcional hasta sellar), `estado` (borrador / sellado), `usuario_genera` (FK, `SET_NULL`), `sellada_en`, `creado_en`. `unique_together = (tipo, fecha_inicio, fecha_fin)` — no se pueden abrir dos nóminas del mismo tipo y periodo.
+- [x] `LineaNominaSemanal`: `nomina` (FK), `persona`, `tipo_persona` (terapeuta / administrativo), `concepto` (texto, default "Pago a terapeuta"), `citas_atendidas` (int), `ingreso_generado` (decimal, informativo), `pago_base`, `bono`, `vale_gasolina`, `extras` (los 4 separados, D5), `metodo_pago` (transferencia / efectivo / pendiente), `estatus_pago` (pendiente / pagado), `observaciones`, `referencia_corte` (id del corte de ConsultorioWeb, para dedupe), `sellada` (bool), `sellada_en`, `detalle_json` (el `detalles` de la API, para el "Ver detalle"). `unique_together = (nomina, persona)`.
   - Propiedad `total` = suma de los 4 conceptos.
-- [ ] `Egreso`: agregar FK opcional `linea_nomina` → `LineaNominaSemanal` (`SET_NULL`), para trazabilidad egreso ↔ nómina (resuelve el campo "Periodo" de la sección 3.1, que hoy solo vive dentro del texto del concepto).
-- [ ] Migración.
+- [x] `Egreso`: agregar FK opcional `linea_nomina` → `LineaNominaSemanal` (`SET_NULL`), para trazabilidad egreso ↔ nómina (resuelve el campo "Periodo" de la sección 3.1, que hoy solo vive dentro del texto del concepto).
+- [x] Migración.
 
 **`apps/finanzas/nomina_semanal.py`** (nuevo — reemplaza a `integraciones/importador_nomina.py` como capa de negocio)
-- [ ] `sincronizar_nomina(fecha_inicio, fecha_fin, usuario)`: llama a la API, filtra por `ESTATUS_IMPORTABLES`, y hace upsert de la `NominaSemanal` en Borrador y sus líneas. **Nunca sobreescribe una línea ya sellada** (regla de duplicidad de la sección 3.1). Precarga `citas_atendidas = total_sesiones`, `detalle_json = detalles`, y los montos según D5.
-- [ ] `calcular_ingreso_generado(persona, fecha_inicio, fecha_fin)`: suma `CitaRecepcion.costo` con estatus "Sí asistió" (D4); regresa `None` si no hay citas sincronizadas de ese periodo.
-- [ ] `sellar_linea(linea, usuario)`: valida que no esté sellada y que tenga método de pago; crea **un Egreso por cada concepto con monto > 0** (base, bono, vale, extras), con `referencia_externa` legible tipo `NOM-2026-07-09-JA-base` (formato del ejemplo de la sección 3.1) y `linea_nomina` apuntando a la línea; marca `sellada=True`; registra en auditoría. Idempotente y atómica.
-- [ ] `sellar_periodo(nomina, usuario)`: sella todas las líneas no selladas; si alguna no tiene método de pago, **no sella nada** y devuelve la lista de faltantes (mensaje claro); al terminar pone la nómina en Sellado, fija `fecha_pago` y `sellada_en`.
-- [ ] Borrar `integraciones/importador_nomina.py` y `reportes_nomina.py` (su función la absorbe la cabecera). Quitar sus imports en `views.py`.
+- [x] `sincronizar_nomina(fecha_inicio, fecha_fin, usuario)`: llama a la API, filtra por `ESTATUS_IMPORTABLES`, y hace upsert de la `NominaSemanal` en Borrador y sus líneas. **Nunca sobreescribe una línea ya sellada** (regla de duplicidad de la sección 3.1). Precarga `citas_atendidas = total_sesiones`, `detalle_json = detalles`, y los montos según D5.
+- [x] `calcular_ingreso_generado(persona, fecha_inicio, fecha_fin)`: suma `CitaRecepcion.costo` con estatus "Sí asistió" (D4); regresa `None` si no hay citas sincronizadas de ese periodo.
+- [x] `sellar_linea(linea, usuario)`: valida que no esté sellada y que tenga método de pago; crea **un Egreso por cada concepto con monto > 0** (base, bono, vale, extras), con `referencia_externa` legible tipo `NOM-2026-07-09-JA-base` (formato del ejemplo de la sección 3.1) y `linea_nomina` apuntando a la línea; marca `sellada=True`; registra en auditoría. Idempotente y atómica.
+- [x] `sellar_periodo(nomina, usuario)`: sella todas las líneas no selladas; si alguna no tiene método de pago, **no sella nada** y devuelve la lista de faltantes (mensaje claro); al terminar pone la nómina en Sellado, fija `fecha_pago` y `sellada_en`.
+- [x] Borrar `integraciones/importador_nomina.py` y `reportes_nomina.py` (su función la absorbe la cabecera). Quitar sus imports en `views.py`.
 
 **Vistas y UI**
-- [ ] `nomina_view` reescrita: selector de periodo + tipo; **auto-sincroniza al abrir** si la API está configurada (D8) y hay tipo semanal; tabla de líneas con columnas Persona, Tipo, Citas atendidas, Ingreso generado, Pago base, Bono, Vale, Extras, Total, Método (selector inline), Estatus, Observaciones, y acciones "Ver detalle" / "Sellar".
-- [ ] Acciones POST: `guardar_borrador` (guarda métodos/montos/observaciones editados en bloque), `sellar_linea`, `sellar_periodo`, `sincronizar`, `estatus_pago` (marcar pagado un egreso ya sellado).
-- [ ] `nomina_detalle_view` (`nomina/<id>/linea/<id>/`) o modal con el desglose por paciente desde `detalle_json` (fecha, paciente, servicio, monto) — es el botón "Ver detalle" de la sección 7.
-- [ ] Modal "Capturar nómina manual" para quincenal/administrativa (D3): persona, tipo, concepto, los 4 montos, método, observaciones.
-- [ ] Banner de estado: Borrador (editable) vs Sellada (solo lectura + descarga).
+- [x] `nomina_view` reescrita: selector de periodo + tipo; **auto-sincroniza al abrir** si la API está configurada (D8) y hay tipo semanal; tabla de líneas con columnas Persona, Tipo, Citas atendidas, Ingreso generado, Pago base, Bono, Vale, Extras, Total, Método (selector inline), Estatus, Observaciones, y acciones "Ver detalle" / "Sellar".
+- [x] Acciones POST: `guardar_borrador` (guarda métodos/montos/observaciones editados en bloque), `sellar_linea`, `sellar_periodo`, `sincronizar`, `estatus_pago` (marcar pagado un egreso ya sellado).
+- [x] `nomina_detalle_view` (`nomina/<id>/linea/<id>/`) o modal con el desglose por paciente desde `detalle_json` (fecha, paciente, servicio, monto) — es el botón "Ver detalle" de la sección 7.
+- [x] Modal "Capturar nómina manual" para quincenal/administrativa (D3): persona, tipo, concepto, los 4 montos, método, observaciones.
+- [x] Banner de estado: Borrador (editable) vs Sellada (solo lectura + descarga).
 
 **PDF renovado (`nomina_pdf.html` + `nomina_descargar_view`)**
-- [ ] Encabezado: logo, **tipo de nómina** (F9), periodo, **fecha de pago** (F10), badge de estado real Borrador/Sellada (F4), y **usuario que genera**.
-- [ ] Tabla por persona con la columna **Tipo** real (Terapeuta / Administrativo) y **Observaciones** (F11); las 4 columnas de montos separadas (F7).
-- [ ] Totales: pendiente por dispersar, pendiente transferencia, pendiente efectivo, vales/extras pendientes — ahora sí con valores reales porque el método de pago ya se captura (F1).
-- [ ] Detalle de vales por persona (se conserva) + fecha y hora de generación (se conserva).
-- [ ] La descarga se hace por `NominaSemanal`, no por rango suelto de fechas: `nomina/<id>/descargar/`.
+- [x] Encabezado: logo, **tipo de nómina** (F9), periodo, **fecha de pago** (F10), badge de estado real Borrador/Sellada (F4), y **usuario que genera**.
+- [x] Tabla por persona con la columna **Tipo** real (Terapeuta / Administrativo) y **Observaciones** (F11); las 4 columnas de montos separadas (F7).
+- [x] Totales: pendiente por dispersar, pendiente transferencia, pendiente efectivo, vales/extras pendientes — ahora sí con valores reales porque el método de pago ya se captura (F1).
+- [x] Detalle de vales por persona (se conserva) + fecha y hora de generación (se conserva).
+- [x] La descarga se hace por `NominaSemanal`, no por rango suelto de fechas: `nomina/<id>/descargar/`.
 
 **Ajustes**
-- [ ] `AjusteForm` acepta también `LineaNominaSemanal` como registro a corregir.
-- [ ] `_egresos_efectivos` y el resto de helpers del tablero siguen funcionando (los egresos solo existen ya sellados, así que no hay que excluir borradores: verificar).
+- [x] `AjusteForm` acepta también `LineaNominaSemanal` como registro a corregir.
+- [x] `_egresos_efectivos` y el resto de helpers del tablero siguen funcionando (los egresos solo existen ya sellados, así que no hay que excluir borradores: verificar).
 
 ### Fase 3 — Reporte de Recepción (F3, F12, F13)
-- [ ] `reporte_recepcion_view`: aplicar el rango de fechas **y** un filtro por terapeuta a `citas` antes de calcular KPIs, ranking, comparativo y tabla. Hoy se ignoran (`views.py:517`).
-- [ ] KPI nuevo **"Pacientes atendidos"** = `values('paciente').distinct().count()` sobre citas con "Sí asistió" en el rango (F12).
-- [ ] Selector de terapeuta poblado con los terapeutas presentes en `CitaRecepcion` (F13).
-- [ ] Que el rango del filtro y el de sincronización sean el mismo control, para que no haya dos campos de fecha que hagan cosas distintas en la misma pantalla.
+- [x] `reporte_recepcion_view`: aplicar el rango de fechas **y** un filtro por terapeuta a `citas` antes de calcular KPIs, ranking, comparativo y tabla. Hoy se ignoran (`views.py:517`).
+- [x] KPI nuevo **"Pacientes atendidos"** = `values('paciente').distinct().count()` sobre citas con "Sí asistió" en el rango (F12).
+- [x] Selector de terapeuta poblado con los terapeutas presentes en `CitaRecepcion` (F13).
+- [x] Que el rango del filtro y el de sincronización sean el mismo control, para que no haya dos campos de fecha que hagan cosas distintas en la misma pantalla.
 
 ### Fase 4 — Nómina Academia (F14, F15, F16)
-- [ ] `NominaAcademia`: agregar `usuario_genera` (FK, `SET_NULL`), `fecha_pago`, y `estado` (borrador / sellado) para alinearla con la nómina semanal. Migración.
-- [ ] La captura sigue siendo de un paso, pero ahora deja la nómina en **Borrador**; botón "Sellar" que genera los Egresos (hoy se generan en la captura). Así "Sellar docente" existe de verdad (F5) y se puede corregir antes de sellar sin necesidad de un Ajuste.
-- [ ] Buscador de maestros por nombre en el modal: `<input list="maestros">` + `<datalist>` (HTML puro, sin JS ni dependencias) (F14).
-- [ ] `nomina_academia_pdf.html`: agregar **usuario que genera** y **fecha de pago** al encabezado (F15).
-- [ ] Vista + PDF **consolidado de periodo** (`nomina-academia/periodo/<anio>/<mes>/descargar/`): todos los docentes del mes, con total por docente, total transferencia, total efectivo, pendiente y **total general** (F16). Botón "Sellar periodo" que sella todas las nóminas en borrador de ese mes.
+- [x] `NominaAcademia`: agregar `usuario_genera` (FK, `SET_NULL`), `fecha_pago`, y `estado` (borrador / sellado) para alinearla con la nómina semanal. Migración.
+- [x] La captura sigue siendo de un paso, pero ahora deja la nómina en **Borrador**; botón "Sellar" que genera los Egresos (hoy se generan en la captura). Así "Sellar docente" existe de verdad (F5) y se puede corregir antes de sellar sin necesidad de un Ajuste.
+- [x] Buscador de maestros por nombre en el modal: `<input list="maestros">` + `<datalist>` (HTML puro, sin JS ni dependencias) (F14).
+- [x] `nomina_academia_pdf.html`: agregar **usuario que genera** y **fecha de pago** al encabezado (F15).
+- [x] Vista + PDF **consolidado de periodo** (`nomina-academia/periodo/<anio>/<mes>/descargar/`): todos los docentes del mes, con total por docente, total transferencia, total efectivo, pendiente y **total general** (F16). Botón "Sellar periodo" que sella todas las nóminas en borrador de ese mes.
 
 ### Fase 5 — Cierres finales (F17, D6)
-- [ ] `EgresoForm`: usar `existe_duplicado(Egreso, persona=..., concepto=..., fecha=...)` y rechazar con mensaje que apunte a la pantalla de Ajustes (F17).
-- [ ] Revisar que los botones de descarga digan "Descargar PDF (listo para enviar)" (D6) y documentar en el propio plan que no habrá PNG.
-- [ ] Repasar el sidebar: Tablero, Ingresos, Egresos/Honorarios, Nómina, Nómina Academia, Recepción, Ajustes, Bitácora, Configuración, Donativos, Reportes. Que ninguna pantalla quede huérfana.
-- [ ] Actualizar `CLAUDE.md`: modelos nuevos, el flujo Borrador→Sellado, y que `apps/core/auditoria/` ya no está vacío.
+- [x] `EgresoForm`: usar `existe_duplicado(Egreso, persona=..., concepto=..., fecha=...)` y rechazar con mensaje que apunte a la pantalla de Ajustes (F17).
+- [x] Revisar que los botones de descarga digan "Descargar PDF (listo para enviar)" (D6) y documentar en el propio plan que no habrá PNG.
+- [x] Repasar el sidebar: Tablero, Ingresos, Egresos/Honorarios, Nómina, Nómina Academia, Recepción, Ajustes, Bitácora, Configuración, Donativos, Reportes. Que ninguna pantalla quede huérfana.
+- [x] Actualizar `CLAUDE.md`: modelos nuevos, el flujo Borrador→Sellado, y que `apps/core/auditoria/` ya no está vacío.
 
 ### Fase 6 — Pruebas y despliegue
 - [ ] Pruebas extremo a extremo vía Django test client con el permiso real, por cada fase (mínimo: sincronizar → editar métodos en borrador → sellar una línea → verificar Egresos separados → intentar sellar dos veces → sellar periodo → descargar PDF → registrar ajuste → ver bitácora).
