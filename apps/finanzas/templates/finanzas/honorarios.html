@@ -271,6 +271,16 @@
         {{ form_egreso.fecha }}
         {% if form_egreso.fecha.errors %}<span class="fin-field-error">{{ form_egreso.fecha.errors.0 }}</span>{% endif %}
       </div>
+      {# La casilla solo aparece cuando ya se detectó un duplicado: tenerla
+         siempre visible invitaría a marcarla por reflejo. #}
+      {% if form_egreso.non_field_errors %}
+      <div class="fin-field fin-field-full">
+        <label for="{{ form_egreso.confirmar_duplicado.id_for_label }}" style="display:flex; gap:8px; align-items:center; cursor:pointer;">
+          {{ form_egreso.confirmar_duplicado }}
+          <span>{{ form_egreso.confirmar_duplicado.label }}</span>
+        </label>
+      </div>
+      {% endif %}
     </div>
     <div class="fin-modal-actions">
       <button type="button" class="fin-btn-outline" onclick="this.closest('dialog').close()">Cancelar</button>

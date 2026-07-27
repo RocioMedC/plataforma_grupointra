@@ -7,7 +7,7 @@
 <button type="button" class="fin-btn-outline" onclick="document.getElementById('dialog-linea').showModal()">Agregar persona</button>
 {% endif %}
 {% if nomina %}
-<a class="fin-btn-primary fin-btn-activo" href="{% url 'finanzas:nomina_descargar' nomina.id %}">Descargar PDF</a>
+<a class="fin-btn-primary fin-btn-activo" href="{% url 'finanzas:nomina_descargar' nomina.id %}" title="Documento listo para enviar por WhatsApp o correo">Descargar PDF</a>
 {% endif %}
 {% endblock %}
 

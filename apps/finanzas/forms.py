@@ -309,6 +309,16 @@ class EgresoForm(forms.ModelForm):
             'fecha': forms.DateInput(attrs={**_ATTRS, 'type': 'date'}),
         }
 
+    # La regla general de la sección 2 del documento pide impedir duplicidad
+    # por periodo/persona/concepto. Para un egreso capturado a mano no se
+    # puede bloquear en seco (dos gastos idénticos el mismo día existen), así
+    # que se usa la otra salida que el propio documento contempla: "bloquear
+    # o pedir confirmacion".
+    confirmar_duplicado = forms.BooleanField(
+        required=False, label='Sí, es un movimiento distinto al que ya está capturado',
+        widget=forms.CheckboxInput(attrs={'class': 'fin-check'}),
+    )
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['categoria'].choices = _opciones_categoria_egreso()
@@ -326,6 +336,22 @@ class EgresoForm(forms.ModelForm):
         if monto <= Decimal('0'):
             raise forms.ValidationError('El monto debe ser mayor a cero.')
         return monto
+
+    def clean(self):
+        datos = super().clean()
+        if datos.get('confirmar_duplicado'):
+            return datos
+        persona, concepto = datos.get('persona'), datos.get('concepto')
+        monto, fecha = datos.get('monto'), datos.get('fecha')
+        if all([concepto, monto, fecha]) and existe_duplicado(
+            Egreso, persona=persona or '', concepto=concepto, monto=monto, fecha=fecha,
+        ):
+            raise forms.ValidationError(
+                f'Ya hay un egreso idéntico capturado el {fecha:%d/%m/%Y} '
+                f'({concepto}, {monto}). Si de verdad es otro movimiento, marca la casilla '
+                'de confirmación; si es una corrección del anterior, regístrala como Ajuste.'
+            )
+        return datos
 
 
 class LineaNominaManualForm(forms.ModelForm):
