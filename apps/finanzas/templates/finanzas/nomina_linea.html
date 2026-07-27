@@ -1,0 +1,104 @@
+{% extends 'finanzas/_base.html' %}
+{% load finanzas_extras %}
+
+{% block titulo %}Detalle de {{ linea.persona }}{% endblock %}
+{% block acciones_header %}
+<a class="fin-btn-outline" href="{{ volver }}">Volver a la nómina</a>
+{% endblock %}
+
+{% block contenido %}
+<div class="fin-stack">
+
+  <div class="fin-card fin-card-pad fin-nomina-cabecera">
+    <div>
+      <div class="fin-card-title">{{ linea.persona }} · {{ linea.get_tipo_persona_display }}</div>
+      <div class="fin-table-meta">
+        {{ nomina.get_tipo_display }} · {{ nomina.fecha_inicio|date:'d/m/Y' }} al {{ nomina.fecha_fin|date:'d/m/Y' }}
+        {% if linea.sellada %} · Sellada el {{ linea.sellada_en|date:'d/m/Y H:i' }}{% endif %}
+      </div>
+    </div>
+    <span class="fin-badge fin-badge-{% if linea.sellada %}vigente{% else %}pendiente{% endif %}">
+      {% if linea.sellada %}Sellada{% else %}Sin sellar{% endif %}
+    </span>
+  </div>
+
+  <div class="fin-stat-row">
+    <div class="fin-stat"><div class="fin-stat-label">Citas atendidas</div><div class="fin-stat-value">{{ linea.citas_atendidas }}</div></div>
+    <div class="fin-stat">
+      <div class="fin-stat-label">Ingreso generado</div>
+      <div class="fin-stat-value">{% if linea.ingreso_generado is not None %}{{ linea.ingreso_generado|dinero }}{% else %}—{% endif %}</div>
+      {% if linea.ingreso_generado is None %}<div class="fin-stat-sub">Sincroniza Recepción de este periodo para calcularlo</div>{% endif %}
+    </div>
+    <div class="fin-stat"><div class="fin-stat-label">Pago base</div><div class="fin-stat-value">{{ linea.pago_base|dinero }}</div></div>
+    <div class="fin-stat"><div class="fin-stat-label">Vale / bono</div><div class="fin-stat-value">{{ linea.vale_gasolina|dinero }}</div></div>
+    <div class="fin-stat"><div class="fin-stat-label">Total a pagar</div><div class="fin-stat-value">{{ linea.total|dinero }}</div></div>
+  </div>
+
+  <div class="fin-card fin-table-card">
+    <div class="fin-table-toolbar">
+      <div class="fin-card-title">Desglose por cita</div>
+      <div class="fin-table-meta">Suma del desglose: {{ total_detalle|dinero }}</div>
+    </div>
+    <div class="fin-table-wrap">
+      <table class="fin-table">
+        <thead><tr><th>Fecha</th><th>Paciente</th><th>Servicio</th><th class="num">Monto</th></tr></thead>
+        <tbody>
+          {% for d in detalle %}
+          <tr>
+            <td>{{ d.fecha|default:'—' }}</td>
+            <td>{{ d.paciente|default:'—' }}</td>
+            <td>{{ d.servicio|default:'—' }}</td>
+            <td class="num">{{ d.monto|dinero }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="fin-empty">Esta línea no tiene desglose por cita (se capturó a mano o el corte no lo incluye).</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if egresos %}
+  <div class="fin-card fin-table-card">
+    <div class="fin-table-toolbar"><div class="fin-card-title">Egresos generados al sellar</div></div>
+    <div class="fin-table-wrap">
+      <table class="fin-table">
+        <thead><tr><th>Referencia</th><th>Concepto</th><th class="num">Monto</th><th>Método</th><th>Estatus</th></tr></thead>
+        <tbody>
+          {% for e in egresos %}
+          <tr>
+            <td>{{ e.referencia_externa }}</td>
+            <td>{{ e.concepto }}</td>
+            <td class="num">{{ e.monto|dinero }}</td>
+            <td>{{ e.get_metodo_pago_display|default:'Pendiente de asignar' }}</td>
+            <td><span class="fin-badge fin-badge-{% if e.estatus == 'pagado' %}vigente{% else %}pendiente{% endif %}">{{ e.get_estatus_display }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if linea.sellada %}
+  <form method="post" action="{{ volver }}" class="fin-card fin-card-pad">
+    {% csrf_token %}
+    <input type="hidden" name="accion" value="estatus_pago">
+    <input type="hidden" name="id" value="{{ linea.id }}">
+    <input type="hidden" name="tipo" value="{{ nomina.tipo }}">
+    <input type="hidden" name="fecha_inicio" value="{{ nomina.fecha_inicio|date:'Y-m-d' }}">
+    <input type="hidden" name="fecha_fin" value="{{ nomina.fecha_fin|date:'Y-m-d' }}">
+    <div class="fin-card-title">Estatus de pago</div>
+    <p class="fin-table-meta" style="margin: 6px 0 12px;">Marcar como pagado también actualiza los egresos generados, para que el tablero deje de contarlos como pendientes.</p>
+    <div class="fin-nomina-acciones">
+      <select name="estatus_pago" class="fin-input">
+        <option value="pendiente"{% if linea.estatus_pago == 'pendiente' %} selected{% endif %}>Pendiente de pago</option>
+        <option value="pagado"{% if linea.estatus_pago == 'pagado' %} selected{% endif %}>Pagado</option>
+      </select>
+      <button type="submit" class="fin-btn-primary fin-btn-activo">Actualizar</button>
+    </div>
+  </form>
+  {% endif %}
+
+</div>
+{% endblock %}

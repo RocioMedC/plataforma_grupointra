@@ -1,10 +1,14 @@
 {% extends 'finanzas/_base.html' %}
 {% load finanzas_extras %}
 
-{% block titulo %}Nómina semanal{% endblock %}
-
+{% block titulo %}Nómina{% endblock %}
 {% block acciones_header %}
-<button type="submit" form="form-importar-nomina" class="fin-btn-primary fin-btn-activo" {% if not hay_seleccionables %}disabled{% endif %}>Importar seleccionados</button>
+{% if nomina and not nomina.esta_sellada %}
+<button type="button" class="fin-btn-outline" onclick="document.getElementById('dialog-linea').showModal()">Agregar persona</button>
+{% endif %}
+{% if nomina %}
+<a class="fin-btn-primary fin-btn-activo" href="{% url 'finanzas:nomina_descargar' nomina.id %}">Descargar PDF</a>
+{% endif %}
 {% endblock %}
 
 {% block contenido %}
@@ -12,61 +16,238 @@
 
   <div class="fin-banner">
     <span class="fin-banner-icon">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v4H4z"></path><path d="M4 12h16v8H4z"></path><line x1="8" y1="16" x2="16" y2="16"></line></svg>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v4H4z"></path><path d="M4 12h16v8H4z"></path></svg>
     </span>
-    <div class="fin-banner-text"><b>Nómina sellada en ConsultorioWeb.</b> Se muestran únicamente los cortes semanales en estatus aprobado o pagado; los cortes en borrador no pueden importarse porque todavía pueden recalcularse.</div>
+    <div class="fin-banner-text"><b>La nómina se revisa en Borrador y se cierra al sellar.</b> Mientras esté en borrador puedes corregir montos, elegir método de pago y escribir observaciones. Al sellar —por persona o el periodo completo— se generan los egresos separados por concepto y ya no se puede editar: una corrección posterior se registra como Ajuste.</div>
   </div>
 
   <form method="get" class="fin-card fin-card-pad fin-filter-form">
+    <div class="fin-field">
+      <label>Tipo de nómina</label>
+      <select name="tipo">
+        {% for valor, etiqueta in tipos %}
+        <option value="{{ valor }}"{% if tipo == valor %} selected{% endif %}>{{ etiqueta }}</option>
+        {% endfor %}
+      </select>
+    </div>
     <div class="fin-field"><label>Desde</label><input type="date" name="fecha_inicio" value="{{ fecha_inicio }}"></div>
     <div class="fin-field"><label>Hasta</label><input type="date" name="fecha_fin" value="{{ fecha_fin }}"></div>
-    <button type="submit" class="fin-btn-outline">Buscar cortes</button>
-    <a class="fin-btn-outline" href="{% url 'finanzas:nomina_descargar' %}?fecha_inicio={{ fecha_inicio }}&fecha_fin={{ fecha_fin }}">Descargar nómina (PDF)</a>
+    <button type="submit" class="fin-btn-outline">Ver periodo</button>
   </form>
 
-  {% if error %}
-  <div class="fin-alert fin-alert-error">{{ error }}</div>
+  {% if aviso_sync %}<div class="fin-alert fin-alert-info">{{ aviso_sync }}</div>{% endif %}
+
+  {% if nomina %}
+  <div class="fin-card fin-card-pad fin-nomina-cabecera">
+    <div>
+      <div class="fin-card-title">{{ nomina.get_tipo_display }} · {{ nomina.fecha_inicio|date:'d/m/Y' }} al {{ nomina.fecha_fin|date:'d/m/Y' }}</div>
+      <div class="fin-table-meta">
+        Folio {{ nomina.folio }}
+        {% if nomina.fecha_pago %} · Fecha de pago: {{ nomina.fecha_pago|date:'d/m/Y' }}{% endif %}
+        {% if nomina.usuario_genera %} · Generó: {{ nomina.usuario_genera.get_full_name|default:nomina.usuario_genera.username }}{% endif %}
+      </div>
+    </div>
+    <div class="fin-nomina-acciones">
+      <span class="fin-badge fin-badge-{% if nomina.esta_sellada %}vigente{% else %}pendiente{% endif %}">{{ nomina.get_estado_display }}</span>
+      {% if es_semanal and api_configurada and not nomina.esta_sellada %}
+      <form method="post" class="fin-inline-form">
+        {% csrf_token %}
+        <input type="hidden" name="accion" value="sincronizar">
+        <input type="hidden" name="tipo" value="{{ tipo }}">
+        <input type="hidden" name="fecha_inicio" value="{{ fecha_inicio }}">
+        <input type="hidden" name="fecha_fin" value="{{ fecha_fin }}">
+        <button type="submit" class="fin-btn-outline">Sincronizar ahora</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if totales %}
+  <div class="fin-stat-row">
+    <div class="fin-stat"><div class="fin-stat-label">Total del periodo</div><div class="fin-stat-value">{{ totales.total_general|dinero }}</div></div>
+    <div class="fin-stat"><div class="fin-stat-label">Pendiente por dispersar</div><div class="fin-stat-value">{{ totales.pendiente_dispersar|dinero }}</div></div>
+    <div class="fin-stat"><div class="fin-stat-label">Pendiente transferencia</div><div class="fin-stat-value">{{ totales.pendiente_transferencia|dinero }}</div></div>
+    <div class="fin-stat"><div class="fin-stat-label">Pendiente efectivo</div><div class="fin-stat-value">{{ totales.pendiente_efectivo|dinero }}</div></div>
+    <div class="fin-stat"><div class="fin-stat-label">Vales / extras pendientes</div><div class="fin-stat-value">{{ totales.vales_pendientes|dinero }}</div></div>
+  </div>
   {% endif %}
 
-  <form id="form-importar-nomina" method="post" class="fin-card fin-table-card">
+  <form method="post" class="fin-card fin-table-card">
     {% csrf_token %}
+    <input type="hidden" name="tipo" value="{{ tipo }}">
     <input type="hidden" name="fecha_inicio" value="{{ fecha_inicio }}">
     <input type="hidden" name="fecha_fin" value="{{ fecha_fin }}">
     <div class="fin-table-toolbar">
-      <div class="fin-card-title">Cortes semanales sellados</div>
+      <div class="fin-card-title">Personas en la nómina</div>
+      {% if not nomina.esta_sellada %}
+      <div class="fin-nomina-acciones">
+        <button type="submit" name="accion" value="guardar_borrador" class="fin-btn-outline">Guardar borrador</button>
+        {% if hay_por_sellar %}
+        <button type="button" class="fin-btn-primary fin-btn-activo" onclick="document.getElementById('dialog-sellar').showModal()">Sellar periodo</button>
+        {% endif %}
+      </div>
+      {% endif %}
     </div>
     <div class="fin-table-wrap">
       <table class="fin-table">
         <thead>
           <tr>
-            <th></th>
-            <th>Terapeuta</th>
-            <th>Semana</th>
+            <th>Persona</th>
+            <th>Tipo</th>
+            <th>Concepto</th>
+            <th class="num">Citas</th>
+            <th class="num">Ingreso generado</th>
             <th class="num">Pago base</th>
-            <th class="num">Bono / vale</th>
+            <th class="num">Vale / bono</th>
+            <th class="num">Extras</th>
             <th class="num">Total</th>
+            <th>Método</th>
             <th>Estatus</th>
+            <th>Observaciones</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          {% for c in cortes %}
+          {% for l in lineas %}
           <tr>
-            <td>{% if not c.importado %}<input type="checkbox" name="corte_id" value="{{ c.id }}">{% endif %}</td>
-            <td>{{ c.terapeuta }}</td>
-            <td>{{ c.fecha_inicio }} – {{ c.fecha_fin }}</td>
-            <td class="num">{{ c.subtotal_sesiones_fmt }}</td>
-            <td class="num">{{ c.total_bonos_fmt }}</td>
-            <td class="num">{{ c.total_pago_fmt }}</td>
-            <td><span class="fin-badge fin-badge-{{ c.estatus_badge }}">{{ c.estatus }}</span></td>
-            <td>{% if c.importado %}<span class="fin-badge fin-badge-vigente">Ya importado</span>{% endif %}</td>
+            <td><b>{{ l.persona }}</b></td>
+            <td>{{ l.get_tipo_persona_display }}</td>
+            <td>{{ l.concepto }}</td>
+            <td class="num">{{ l.citas_atendidas }}</td>
+            <td class="num">{% if l.ingreso_generado is not None %}{{ l.ingreso_generado|dinero }}{% else %}<span class="fin-table-meta" title="No hay citas de Recepción sincronizadas para este periodo">—</span>{% endif %}</td>
+            {% if l.sellada %}
+            <td class="num">{{ l.pago_base|dinero }}</td>
+            <td class="num">{{ l.vale_gasolina|dinero }}</td>
+            <td class="num">{{ l.extras|dinero }}</td>
+            {% else %}
+            <td class="num"><input type="number" step="0.01" min="0" name="base_{{ l.id }}" value="{{ l.pago_base }}" class="fin-input fin-input-mini"></td>
+            <td class="num"><input type="number" step="0.01" min="0" name="vale_{{ l.id }}" value="{{ l.vale_gasolina }}" class="fin-input fin-input-mini"></td>
+            <td class="num"><input type="number" step="0.01" min="0" name="extra_{{ l.id }}" value="{{ l.extras }}" class="fin-input fin-input-mini"></td>
+            {% endif %}
+            <td class="num"><b>{{ l.total|dinero }}</b></td>
+            <td>
+              {% if l.sellada %}{{ l.get_metodo_pago_display }}
+              {% else %}
+              <select name="metodo_{{ l.id }}" class="fin-input fin-input-mini">
+                {% for valor, etiqueta in metodos %}
+                <option value="{{ valor }}"{% if l.metodo_pago == valor %} selected{% endif %}>{{ etiqueta }}</option>
+                {% endfor %}
+              </select>
+              {% endif %}
+            </td>
+            <td>
+              {% if l.sellada %}
+              <span class="fin-badge fin-badge-{% if l.estatus_pago == 'pagado' %}vigente{% else %}pendiente{% endif %}">{{ l.get_estatus_pago_display }}</span>
+              {% else %}
+              <span class="fin-table-meta">Sin sellar</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if l.sellada %}{{ l.observaciones|default:'—' }}
+              {% else %}<input type="text" name="obs_{{ l.id }}" value="{{ l.observaciones }}" class="fin-input fin-input-mini" placeholder="—">
+              {% endif %}
+            </td>
+            <td class="fin-acciones-celda">
+              <a class="fin-btn-mini" href="{% url 'finanzas:nomina_linea' l.id %}">Ver detalle</a>
+              {% if not l.sellada and l.total > 0 %}
+              <button type="submit" name="accion" value="sellar_linea" class="fin-btn-mini fin-btn-mini-activo"
+                      formnovalidate onclick="document.getElementById('id-linea').value='{{ l.id }}'">Sellar</button>
+              {% endif %}
+            </td>
           </tr>
           {% empty %}
-          <tr><td colspan="8" class="fin-empty">No hay cortes sellados en este rango de fechas.</td></tr>
+          <tr><td colspan="13" class="fin-empty">
+            {% if es_semanal %}No hay cortes sellados de ConsultorioWeb en este periodo.{% else %}Todavía no hay personas capturadas en esta nómina.{% endif %}
+          </td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
+    <input type="hidden" name="id" id="id-linea" value="">
   </form>
+
+  {% else %}
+  <div class="fin-card fin-card-pad">
+    <div class="fin-card-title">No hay nómina para este periodo</div>
+    <p class="fin-table-meta" style="margin-top:8px;">
+      {% if es_semanal %}
+        {% if api_configurada %}No se encontraron cortes sellados de ConsultorioWeb en este rango. Revisa las fechas o sella los cortes en la plataforma de Recepción.
+        {% else %}La conexión con ConsultorioWeb no está configurada. Puedes capturar la nómina a mano con "Agregar persona".{% endif %}
+      {% else %}Captura la primera persona para crear la nómina {{ tipo }} de este periodo.{% endif %}
+    </p>
+    <div style="margin-top:14px;">
+      <button type="button" class="fin-btn-primary fin-btn-activo" onclick="document.getElementById('dialog-linea').showModal()">Agregar persona</button>
+    </div>
+  </div>
+  {% endif %}
+
 </div>
+
+<dialog id="dialog-linea" class="fin-modal">
+  <form method="post" class="fin-modal-form">
+    {% csrf_token %}
+    <input type="hidden" name="accion" value="linea_manual">
+    <input type="hidden" name="tipo" value="{{ tipo }}">
+    <input type="hidden" name="fecha_inicio" value="{{ fecha_inicio }}">
+    <input type="hidden" name="fecha_fin" value="{{ fecha_fin }}">
+    <div class="fin-modal-header">
+      <div class="fin-card-title">Agregar persona a la nómina</div>
+      <button type="button" class="fin-modal-close" onclick="this.closest('dialog').close()" aria-label="Cerrar">&times;</button>
+    </div>
+    {% if form_linea.non_field_errors %}
+    <div class="fin-alert fin-alert-error" style="margin: 16px 22px 0;">{{ form_linea.non_field_errors|striptags }}</div>
+    {% endif %}
+    <div class="fin-modal-grid">
+      <div class="fin-field fin-field-full">
+        <label for="{{ form_linea.persona.id_for_label }}">Persona</label>
+        {{ form_linea.persona }}
+        {% if form_linea.persona.errors %}<span class="fin-field-error">{{ form_linea.persona.errors.0 }}</span>{% endif %}
+      </div>
+      <div class="fin-field"><label for="{{ form_linea.tipo_persona.id_for_label }}">Tipo</label>{{ form_linea.tipo_persona }}</div>
+      <div class="fin-field"><label for="{{ form_linea.concepto.id_for_label }}">Concepto</label>{{ form_linea.concepto }}</div>
+      <div class="fin-field"><label for="{{ form_linea.pago_base.id_for_label }}">Pago base</label>{{ form_linea.pago_base }}</div>
+      <div class="fin-field"><label for="{{ form_linea.vale_gasolina.id_for_label }}">Vale de gasolina / bono</label>{{ form_linea.vale_gasolina }}</div>
+      <div class="fin-field"><label for="{{ form_linea.extras.id_for_label }}">Bono extra / otros</label>{{ form_linea.extras }}</div>
+      <div class="fin-field"><label for="{{ form_linea.metodo_pago.id_for_label }}">Método de pago</label>{{ form_linea.metodo_pago }}</div>
+      <div class="fin-field fin-field-full"><label for="{{ form_linea.observaciones.id_for_label }}">Observaciones</label>{{ form_linea.observaciones }}</div>
+    </div>
+    <div class="fin-modal-actions">
+      <button type="button" class="fin-btn-outline" onclick="this.closest('dialog').close()">Cancelar</button>
+      <button type="submit" class="fin-btn-primary fin-btn-activo">Agregar</button>
+    </div>
+  </form>
+</dialog>
+
+{% if nomina and hay_por_sellar %}
+<dialog id="dialog-sellar" class="fin-modal">
+  <form method="post" class="fin-modal-form">
+    {% csrf_token %}
+    <input type="hidden" name="accion" value="sellar_periodo">
+    <input type="hidden" name="tipo" value="{{ tipo }}">
+    <input type="hidden" name="fecha_inicio" value="{{ fecha_inicio }}">
+    <input type="hidden" name="fecha_fin" value="{{ fecha_fin }}">
+    <div class="fin-modal-header">
+      <div class="fin-card-title">Sellar el periodo completo</div>
+      <button type="button" class="fin-modal-close" onclick="this.closest('dialog').close()" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="fin-modal-grid">
+      <div class="fin-field fin-field-full">
+        <p class="fin-table-meta">Se sellarán todas las personas que todavía no lo estén y se generarán sus egresos. Después de sellar, la nómina ya no se puede editar: las correcciones se registran como Ajuste.</p>
+      </div>
+      <div class="fin-field fin-field-full">
+        <label for="fecha-pago">Fecha de pago</label>
+        <input type="date" id="fecha-pago" name="fecha_pago" value="{{ hoy }}" class="fin-input">
+      </div>
+    </div>
+    <div class="fin-modal-actions">
+      <button type="button" class="fin-btn-outline" onclick="this.closest('dialog').close()">Cancelar</button>
+      <button type="submit" class="fin-btn-primary fin-btn-activo">Sellar nómina</button>
+    </div>
+  </form>
+</dialog>
+{% endif %}
+
+{% if form_linea.errors %}
+<script>document.getElementById('dialog-linea').showModal();</script>
+{% endif %}
 {% endblock %}

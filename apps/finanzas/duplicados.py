@@ -2,7 +2,7 @@ class DuplicadoError(Exception):
     """Ya existe un registro para esta combinación de periodo/persona/concepto
     y el flujo que llama debe bloquear la captura (a diferencia de un
     import/sincronización, que debe actualizar el registro existente en vez
-    de rechazarlo — ver CitaRecepcion e importador_nomina.py, que
+    de rechazarlo — ver CitaRecepcion y nomina_semanal.py, que
     deliberadamente usan update_or_create/get_or_create en lugar de este
     helper)."""
 

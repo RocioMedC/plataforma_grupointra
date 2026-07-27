@@ -22,20 +22,24 @@ from .ajustes import AjusteError, registrar_ajuste
 from .duplicados import DuplicadoError
 from .forms import (
     AjusteForm, CategoriaEgresoForm, ConceptoIngresoForm, DonativoForm, EgresoForm,
-    HonorarioForm, IngresoForm, MaestroForm, NominaAcademiaCaptureForm,
-    ReporteRecepcionUploadForm, TabuladorAcademiaForm, TabuladorForm,
+    HonorarioForm, IngresoForm, LineaNominaManualForm, MaestroForm,
+    NominaAcademiaCaptureForm, ReporteRecepcionUploadForm, TabuladorAcademiaForm,
+    TabuladorForm,
 )
-from .integraciones.consultorioweb import ConsultorioWebError, obtener_cortes_semanales
-from .integraciones.importador_nomina import cortes_importables, importar_cortes, ya_importado
+from .integraciones.consultorioweb import ConsultorioWebError
 from .integraciones.importador_recepcion import importar_citas
 from .integraciones.reporte_recepcion import ReporteRecepcionError, leer_reporte_api, leer_reporte_excel
 from .models import (
     Ajuste, CategoriaEgreso, CitaRecepcion, ConceptoIngreso, Donativo, Egreso,
-    Honorario, Ingreso, Maestro, NominaAcademia, TabuladorAcademia,
+    Honorario, Ingreso, LineaNominaSemanal, Maestro, NominaAcademia, NominaSemanal,
+    TabuladorAcademia,
 )
 from .nomina_academia import NominaAcademiaError, capturar_nomina_academia
+from .nomina_semanal import (
+    NominaError, marcar_pago, obtener_nomina, sellar_linea, sellar_periodo,
+    sincronizar_nomina, totales_nomina,
+)
 from .pdfs import render_pdf
-from .reportes_nomina import resumen_nomina_semanal
 
 META_ANUAL_DONATIVOS = Decimal('2000000')
 
@@ -398,84 +402,254 @@ def honorarios_view(request):
     return render(request, 'finanzas/honorarios.html', contexto)
 
 
+def _periodo_de_nomina(request, hoy):
+    """Tipo y rango del periodo elegido en la pantalla de Nómina. El semanal
+    por defecto es la semana en curso (lunes a domingo), no un rango de un
+    mes: una nómina es de un periodo de corte, no de "lo que haya"."""
+    tipo = request.GET.get('tipo') or request.POST.get('tipo') or NominaSemanal.Tipo.SEMANAL
+    if tipo not in NominaSemanal.Tipo.values:
+        tipo = NominaSemanal.Tipo.SEMANAL
+
+    lunes = hoy - timedelta(days=hoy.weekday())
+    inicio = _fecha_desde_query(request, 'fecha_inicio') or lunes
+    fin = _fecha_desde_query(request, 'fecha_fin') or (lunes + timedelta(days=6))
+    if request.method == 'POST':
+        inicio = _fecha_desde_post(request, 'fecha_inicio') or inicio
+        fin = _fecha_desde_post(request, 'fecha_fin') or fin
+    return tipo, inicio, fin
+
+
+def _url_nomina(tipo, inicio, fin):
+    return (
+        f"{reverse('finanzas:nomina')}?tipo={tipo}"
+        f'&fecha_inicio={inicio.isoformat()}&fecha_fin={fin.isoformat()}'
+    )
+
+
+def _guardar_borrador_nomina(request, nomina):
+    """Guarda de un golpe los cambios hechos en la tabla: método de pago,
+    observaciones y los tres montos. Solo toca líneas no selladas — una vez
+    sellada, la corrección es un Ajuste, no una edición."""
+    cambios = 0
+    for linea in nomina.lineas.filter(sellada=False):
+        metodo = request.POST.get(f'metodo_{linea.id}')
+        observaciones = request.POST.get(f'obs_{linea.id}', '').strip()
+        campos = {}
+        if metodo in LineaNominaSemanal.MetodoPago.values and metodo != linea.metodo_pago:
+            campos['metodo_pago'] = (linea.metodo_pago, metodo)
+        if observaciones != linea.observaciones:
+            campos['observaciones'] = (linea.observaciones, observaciones)
+        monto_cambiado = False
+        for campo, prefijo in (('pago_base', 'base'), ('vale_gasolina', 'vale'), ('extras', 'extra')):
+            crudo = request.POST.get(f'{prefijo}_{linea.id}')
+            if crudo is None:
+                continue
+            try:
+                valor = Decimal(crudo or '0')
+            except InvalidOperation:
+                continue
+            if valor < 0:
+                continue
+            if valor != getattr(linea, campo):
+                campos[campo] = (getattr(linea, campo), valor)
+                monto_cambiado = True
+        if not campos:
+            continue
+        if monto_cambiado and not linea.montos_editados:
+            # Marca la línea para que la próxima sincronización no pise la
+            # corrección (ver LineaNominaSemanal.montos_editados).
+            campos['montos_editados'] = (False, True)
+        for campo, (_, nuevo) in campos.items():
+            setattr(linea, campo, nuevo)
+        linea.save(update_fields=list(campos))
+        for campo, (anterior, nuevo) in campos.items():
+            if campo == 'montos_editados':
+                continue  # bandera interna, no es un dato de negocio que auditar
+            registrar_cambio_de_campo(request.user, linea, campo, anterior, nuevo)
+        cambios += 1
+    return cambios
+
+
 @acceso_finanzas_requerido
 def nomina_view(request):
+    """Nómina por periodo con su ciclo de vida completo (secciones 3 y 7 del
+    documento): se sincroniza en Borrador, se revisa persona por persona, y
+    al sellar —por persona o el periodo entero— nacen los Egresos.
+
+    La nómina semanal se llena desde ConsultorioWeb; la quincenal y la
+    administrativa se capturan a mano en esta misma pantalla."""
     hoy = timezone.now().date()
+    tipo, fecha_inicio, fecha_fin = _periodo_de_nomina(request, hoy)
+    nomina = obtener_nomina(tipo, fecha_inicio, fecha_fin)
 
     if request.method == 'POST':
-        fecha_inicio = request.POST.get('fecha_inicio', '')
-        fecha_fin = request.POST.get('fecha_fin', '')
-        ids_seleccionados = set(request.POST.getlist('corte_id'))
-        try:
-            cortes_raw = obtener_cortes_semanales(fecha_inicio, fecha_fin)
-            cortes_por_id = {str(c['id']): c for c in cortes_importables(cortes_raw)}
-            seleccionados = [cortes_por_id[i] for i in ids_seleccionados if i in cortes_por_id]
-            resumen = importar_cortes(seleccionados)
-            mensaje = (
-                f"Se importaron {resumen['creados']} movimientos a Egresos "
-                f"({resumen['omitidos']} cortes ya estaban importados y se omitieron)."
+        accion = request.POST.get('accion')
+        destino = _url_nomina(tipo, fecha_inicio, fecha_fin)
+
+        if accion == 'sincronizar':
+            try:
+                nomina, resumen = sincronizar_nomina(fecha_inicio, fecha_fin, request.user)
+                mensaje = (
+                    f"Sincronizado con ConsultorioWeb: {resumen['nuevas']} persona(s) nueva(s), "
+                    f"{resumen['actualizadas']} actualizada(s)."
+                )
+                if resumen['selladas']:
+                    mensaje += f" {resumen['selladas']} ya estaban selladas y no se tocaron."
+                if resumen['con_error']:
+                    mensaje += f" {resumen['con_error']} corte(s) se omitieron por datos inesperados."
+                messages.success(request, mensaje)
+            except ConsultorioWebError as exc:
+                messages.error(request, str(exc))
+            return redirect(destino)
+
+        if nomina is None:
+            if accion == 'linea_manual':
+                nomina = NominaSemanal.objects.create(
+                    tipo=tipo, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
+                    usuario_genera=request.user,
+                )
+                registrar(request.user, nomina, RegistroAuditoria.Accion.CREO)
+            else:
+                messages.error(request, 'Todavía no existe una nómina para ese periodo.')
+                return redirect(destino)
+
+        if accion == 'linea_manual':
+            form_linea = LineaNominaManualForm(request.POST, nomina=nomina)
+            if form_linea.is_valid():
+                if nomina.esta_sellada:
+                    messages.error(request, 'Esta nómina ya está sellada; usa un Ajuste para corregirla.')
+                else:
+                    linea = form_linea.save(commit=False)
+                    linea.nomina = nomina
+                    linea.save()
+                    registrar(request.user, linea, RegistroAuditoria.Accion.CREO)
+                    messages.success(request, f'{linea.persona} agregado a la nómina.')
+                return redirect(destino)
+            # Con errores se vuelve a pintar la pantalla con el modal abierto.
+        elif accion == 'guardar_borrador':
+            cambios = _guardar_borrador_nomina(request, nomina)
+            messages.success(
+                request,
+                f'Borrador guardado: {cambios} línea(s) actualizada(s).' if cambios
+                else 'No hubo cambios que guardar.',
             )
-            if resumen['con_error']:
-                mensaje += f" {resumen['con_error']} corte(s) se omitieron por datos inesperados."
-            messages.success(request, mensaje)
+            return redirect(destino)
+        elif accion == 'sellar_linea':
+            linea = get_object_or_404(LineaNominaSemanal, pk=request.POST.get('id'), nomina=nomina)
+            try:
+                creados = sellar_linea(linea, request.user)
+                messages.success(
+                    request,
+                    f'{linea.persona} sellado: se generaron {len(creados)} egreso(s) por '
+                    f'{_dinero(linea.total)}.',
+                )
+            except NominaError as exc:
+                messages.error(request, str(exc))
+            return redirect(destino)
+        elif accion == 'sellar_periodo':
+            try:
+                resultado = sellar_periodo(
+                    nomina, request.user, _fecha_desde_post(request, 'fecha_pago'),
+                )
+                mensaje = f"Nómina sellada: {resultado['selladas']} persona(s)."
+                if resultado['omitidas']:
+                    mensaje += f" {resultado['omitidas']} se omitieron por estar en cero."
+                messages.success(request, mensaje)
+            except NominaError as exc:
+                messages.error(request, str(exc))
+            return redirect(destino)
+        elif accion == 'estatus_pago':
+            linea = get_object_or_404(LineaNominaSemanal, pk=request.POST.get('id'), nomina=nomina)
+            try:
+                marcar_pago(linea, request.POST.get('estatus_pago'), request.user)
+                messages.success(request, 'Estatus de pago actualizado.')
+            except NominaError as exc:
+                messages.error(request, str(exc))
+            return redirect(destino)
+        else:
+            return redirect(destino)
+    else:
+        form_linea = LineaNominaManualForm()
+
+    # Al abrir por primera vez un periodo semanal, la nómina se trae sola:
+    # el documento pide que el egreso aparezca sin doble captura. En las
+    # visitas siguientes no se vuelve a llamar a la API (sería lento en cada
+    # recarga); para eso está el botón "Sincronizar ahora".
+    aviso_sync = None
+    if (
+        request.method == 'GET' and nomina is None
+        and tipo == NominaSemanal.Tipo.SEMANAL and settings.CONSULTORIOWEB_API_URL
+    ):
+        try:
+            nomina, resumen = sincronizar_nomina(fecha_inicio, fecha_fin, request.user)
+            if resumen['nuevas']:
+                aviso_sync = f"Se trajeron {resumen['nuevas']} persona(s) de ConsultorioWeb."
         except ConsultorioWebError as exc:
-            messages.error(request, str(exc))
-        return redirect(f"{reverse('finanzas:nomina')}?fecha_inicio={fecha_inicio}&fecha_fin={fecha_fin}")
+            aviso_sync = f'No se pudo sincronizar con ConsultorioWeb: {exc}'
 
-    fecha_inicio = request.GET.get('fecha_inicio') or str(hoy - timedelta(weeks=4))
-    fecha_fin = request.GET.get('fecha_fin') or str(hoy)
-
-    cortes = []
-    error = None
-    try:
-        cortes_raw = obtener_cortes_semanales(fecha_inicio, fecha_fin)
-        for c in cortes_importables(cortes_raw):
-            c['importado'] = ya_importado(c['id'])
-            # No existe clase CSS fin-badge-aprobado; 'aprobado' reusa el
-            # estilo verde de 'vigente' (ya definido en finanzas.css).
-            c['estatus_badge'] = 'vigente' if c['estatus'] == 'aprobado' else c['estatus']
-            c['total_pago_fmt'] = _dinero(Decimal(str(c['total_pago'])))
-            c['subtotal_sesiones_fmt'] = _dinero(Decimal(str(c['subtotal_sesiones'])))
-            c['total_bonos_fmt'] = _dinero(Decimal(str(c['total_bonos'])))
-            cortes.append(c)
-    except ConsultorioWebError as exc:
-        error = str(exc)
-
+    lineas = list(nomina.lineas.all()) if nomina else []
     contexto = {
         'vista_actual': 'nomina',
-        'fecha_inicio': fecha_inicio,
-        'fecha_fin': fecha_fin,
-        'cortes': cortes,
-        'error': error,
-        'hay_seleccionables': any(not c['importado'] for c in cortes),
+        'tipo': tipo,
+        'tipos': NominaSemanal.Tipo.choices,
+        'fecha_inicio': fecha_inicio.isoformat(),
+        'fecha_fin': fecha_fin.isoformat(),
+        'nomina': nomina,
+        'lineas': lineas,
+        'totales': totales_nomina(nomina) if nomina else None,
+        'hay_por_sellar': any(not l.sellada and l.total > 0 for l in lineas),
+        'metodos': LineaNominaSemanal.MetodoPago.choices,
+        'estatus_pago_choices': LineaNominaSemanal.EstatusPago.choices,
+        'form_linea': form_linea,
+        'api_configurada': bool(settings.CONSULTORIOWEB_API_URL),
+        'es_semanal': tipo == NominaSemanal.Tipo.SEMANAL,
+        'aviso_sync': aviso_sync,
+        'hoy': hoy.isoformat(),
     }
     return render(request, 'finanzas/nomina.html', contexto)
 
 
 @acceso_finanzas_requerido
-def nomina_descargar_view(request):
-    """Genera el PDF descargable de la nómina semanal (sección 4 del
-    documento de requerimientos), a partir de los Egresos ya importados de
-    ConsultorioWeb en el rango de fechas seleccionado en la pantalla de
-    Nómina."""
-    hoy = timezone.now().date()
-    fecha_inicio = _fecha_desde_query(request, 'fecha_inicio') or (hoy - timedelta(weeks=4))
-    fecha_fin = _fecha_desde_query(request, 'fecha_fin') or hoy
-
-    filas, totales = resumen_nomina_semanal(fecha_inicio, fecha_fin)
-    estatus_general = Egreso.Estatus.PENDIENTE if any(
-        f['estatus'] == Egreso.Estatus.PENDIENTE for f in filas
-    ) else Egreso.Estatus.PAGADO
-
+def nomina_linea_view(request, linea_id):
+    """Botón "Ver detalle" de la sección 7: el desglose por paciente que
+    respalda el monto de esa persona, para revisarlo antes de sellar."""
+    linea = get_object_or_404(
+        LineaNominaSemanal.objects.select_related('nomina'), pk=linea_id,
+    )
+    detalle = linea.detalle_json if isinstance(linea.detalle_json, list) else []
     contexto = {
-        'fecha_inicio': fecha_inicio,
-        'fecha_fin': fecha_fin,
-        'filas': filas,
-        'totales': totales,
-        'estatus_general': estatus_general,
+        'vista_actual': 'nomina',
+        'linea': linea,
+        'nomina': linea.nomina,
+        'detalle': detalle,
+        'total_detalle': sum((Decimal(str(d.get('monto') or 0)) for d in detalle), Decimal('0')),
+        'egresos': linea.egresos.all(),
+        'volver': _url_nomina(
+            linea.nomina.tipo, linea.nomina.fecha_inicio, linea.nomina.fecha_fin,
+        ),
+    }
+    return render(request, 'finanzas/nomina_linea.html', contexto)
+
+
+@acceso_finanzas_requerido
+def nomina_descargar_view(request, nomina_id):
+    """PDF descargable de la nómina (sección 4 del documento): encabezado con
+    tipo, periodo, fecha de pago y estado; tabla por persona con los tres
+    conceptos separados y observaciones; y los cuatro totales que se usan
+    para solicitar la dispersión del dinero."""
+    nomina = get_object_or_404(
+        NominaSemanal.objects.select_related('usuario_genera').prefetch_related('lineas'),
+        pk=nomina_id,
+    )
+    contexto = {
+        'nomina': nomina,
+        'lineas': nomina.lineas.all(),
+        'totales': totales_nomina(nomina),
         'generado_en': timezone.now(),
     }
-    nombre_archivo = f'nomina_semanal_{fecha_inicio.isoformat()}_{fecha_fin.isoformat()}.pdf'
+    nombre_archivo = (
+        f'nomina_{nomina.tipo}_{nomina.fecha_inicio.isoformat()}_{nomina.fecha_fin.isoformat()}.pdf'
+    )
     return render_pdf('finanzas/nomina_pdf.html', contexto, nombre_archivo)
 
 
@@ -871,7 +1045,14 @@ def reportes_view(request):
 
 
 def _fecha_desde_query(request, nombre):
-    valor = request.GET.get(nombre)
+    return _fecha(request.GET.get(nombre))
+
+
+def _fecha_desde_post(request, nombre):
+    return _fecha(request.POST.get(nombre))
+
+
+def _fecha(valor):
     if not valor:
         return None
     try:

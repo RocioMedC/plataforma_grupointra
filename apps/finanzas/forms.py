@@ -6,7 +6,8 @@ from django.contrib.auth import get_user_model
 from .duplicados import existe_duplicado
 from .models import (
     CategoriaEgreso, ConceptoIngreso, ConceptoNominaAcademia, Donativo, Egreso,
-    Honorario, Ingreso, Maestro, NominaAcademia, Tabulador, TabuladorAcademia,
+    Honorario, Ingreso, LineaNominaSemanal, Maestro, NominaAcademia, Tabulador,
+    TabuladorAcademia,
 )
 
 User = get_user_model()
@@ -325,3 +326,50 @@ class EgresoForm(forms.ModelForm):
         if monto <= Decimal('0'):
             raise forms.ValidationError('El monto debe ser mayor a cero.')
         return monto
+
+
+class LineaNominaManualForm(forms.ModelForm):
+    """Captura de una persona en una nómina quincenal o administrativa, que
+    no viene de ConsultorioWeb (sección 4 del documento: la descarga debe
+    poder ser semanal, quincenal, administrativa o de Academia)."""
+
+    class Meta:
+        model = LineaNominaSemanal
+        fields = [
+            'persona', 'tipo_persona', 'concepto', 'pago_base', 'vale_gasolina',
+            'extras', 'metodo_pago', 'estatus_pago', 'observaciones',
+        ]
+        widgets = {
+            'persona': forms.TextInput(attrs={**_ATTRS, 'placeholder': 'Nombre completo'}),
+            'tipo_persona': forms.Select(attrs=_ATTRS),
+            'concepto': forms.TextInput(attrs={**_ATTRS, 'placeholder': 'Pago a terapeuta, Prenómina quincenal, Pago administrativo...'}),
+            'pago_base': forms.NumberInput(attrs={**_ATTRS, 'step': '0.01', 'min': '0'}),
+            'vale_gasolina': forms.NumberInput(attrs={**_ATTRS, 'step': '0.01', 'min': '0'}),
+            'extras': forms.NumberInput(attrs={**_ATTRS, 'step': '0.01', 'min': '0'}),
+            'metodo_pago': forms.Select(attrs=_ATTRS),
+            'estatus_pago': forms.Select(attrs=_ATTRS),
+            'observaciones': forms.TextInput(attrs={**_ATTRS, 'placeholder': 'Opcional'}),
+        }
+
+    def __init__(self, *args, nomina=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.nomina = nomina
+
+    def clean(self):
+        datos = super().clean()
+        total = (
+            (datos.get('pago_base') or Decimal('0'))
+            + (datos.get('vale_gasolina') or Decimal('0'))
+            + (datos.get('extras') or Decimal('0'))
+        )
+        if total <= Decimal('0'):
+            raise forms.ValidationError('Captura al menos un monto mayor a cero (pago base, vale o extra).')
+        persona = datos.get('persona')
+        if self.nomina and persona and existe_duplicado(
+            LineaNominaSemanal, nomina=self.nomina, persona=persona,
+        ):
+            raise forms.ValidationError(
+                f'{persona} ya está capturado en esta nómina. Edita su línea, o registra la '
+                'diferencia como Ajuste si ya fue sellada.'
+            )
+        return datos

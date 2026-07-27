@@ -23,7 +23,7 @@ def _get(ruta, params, timeout):
 def obtener_cortes_semanales(fecha_inicio=None, fecha_fin=None, timeout=10):
     """Llama a GET /api/nomina-semanal/ de ConsultorioWeb y regresa la lista
     de cortes tal cual la entrega la API (sin filtrar por estatus: eso es
-    responsabilidad de la capa de negocio, ver integraciones/importador_nomina.py)."""
+    responsabilidad de la capa de negocio, ver nomina_semanal.py)."""
     params = {}
     if fecha_inicio:
         params['fecha_inicio'] = fecha_inicio

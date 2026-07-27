@@ -20,7 +20,7 @@ def capturar_nomina_academia(
     (horas clase, supervisión, mesa de trabajo — calculados por tabulador —
     más un concepto manual autorizado opcional), y genera un Egreso separado
     por cada concepto con monto > 0 (mismo patrón que la nómina semanal de
-    terapeutas, ver integraciones/importador_nomina.py). `cantidades` es un
+    terapeutas, ver nomina_semanal.py). `cantidades` es un
     dict {concepto: Decimal}. Bloquea duplicar nómina para el mismo
     maestro/periodo (sección 6.1 del documento); una corrección posterior se
     registra como Ajuste (ver ajustes.py), sin reescribir esta nómina."""

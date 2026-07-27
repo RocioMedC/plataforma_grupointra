@@ -2,8 +2,8 @@ from django.contrib import admin
 
 from .models import (
     CategoriaEgreso, CitaRecepcion, ConceptoIngreso, ConceptoNominaAcademia,
-    Donativo, Egreso, Honorario, Ingreso, Maestro, NominaAcademia, Tabulador,
-    TabuladorAcademia,
+    Donativo, Egreso, Honorario, Ingreso, LineaNominaSemanal, Maestro,
+    NominaAcademia, NominaSemanal, Tabulador, TabuladorAcademia,
 )
 
 
@@ -34,6 +34,24 @@ class HonorarioAdmin(admin.ModelAdmin):
     list_display = ('terapeuta', 'tabulador', 'periodo_mes', 'periodo_anio', 'num_pacientes', 'bono', 'total', 'estatus')
     list_filter = ('estatus', 'periodo_anio', 'periodo_mes')
     readonly_fields = ('bono', 'total')
+
+
+class LineaNominaSemanalInline(admin.TabularInline):
+    model = LineaNominaSemanal
+    extra = 0
+    fields = (
+        'persona', 'tipo_persona', 'concepto', 'citas_atendidas', 'pago_base',
+        'vale_gasolina', 'extras', 'metodo_pago', 'estatus_pago', 'sellada',
+    )
+    readonly_fields = ('sellada',)
+
+
+@admin.register(NominaSemanal)
+class NominaSemanalAdmin(admin.ModelAdmin):
+    list_display = ('tipo', 'fecha_inicio', 'fecha_fin', 'estado', 'fecha_pago', 'usuario_genera')
+    list_filter = ('tipo', 'estado', 'fecha_fin')
+    readonly_fields = ('sellada_en', 'creado_en')
+    inlines = [LineaNominaSemanalInline]
 
 
 @admin.register(CitaRecepcion)

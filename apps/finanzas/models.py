@@ -163,6 +163,13 @@ class Egreso(models.Model):
     # índice único permite múltiples NULL pero no múltiples cadenas vacías,
     # y los egresos capturados a mano no tienen referencia externa.
     referencia_externa = models.CharField(max_length=80, unique=True, null=True, blank=True, editable=False)
+    # Trazabilidad egreso -> nómina que lo generó. Resuelve el campo
+    # "Periodo" de la sección 3.1 del documento, que hasta ahora solo vivía
+    # dentro del texto del concepto.
+    linea_nomina = models.ForeignKey(
+        'LineaNominaSemanal', null=True, blank=True, on_delete=models.SET_NULL,
+        editable=False, related_name='egresos',
+    )
 
     class Meta:
         verbose_name = 'Egreso'
@@ -171,6 +178,134 @@ class Egreso(models.Model):
 
     def __str__(self):
         return f'{self.concepto} · {self.monto} · {self.fecha}'
+
+
+class NominaSemanal(models.Model):
+    """Cabecera de una nómina de un periodo (sección 7 del documento de
+    requerimientos). El ciclo de vida del documento vive aquí — Borrador
+    mientras se revisa, Sellada cuando se cierra — y no dentro de cada
+    Egreso: los egresos nacen justo al sellar, y para ellos Pendiente/Pagado
+    describe el movimiento del dinero, no el estado del documento.
+
+    La nómina semanal se llena sincronizando ConsultorioWeb; la quincenal y
+    la administrativa se capturan a mano en la misma pantalla."""
+
+    class Tipo(models.TextChoices):
+        SEMANAL = 'semanal', 'Semanal'
+        QUINCENAL = 'quincenal', 'Quincenal'
+        ADMINISTRATIVA = 'administrativa', 'Administrativa'
+
+    class Estado(models.TextChoices):
+        BORRADOR = 'borrador', 'Borrador'
+        SELLADA = 'sellada', 'Sellada'
+
+    tipo = models.CharField(max_length=20, choices=Tipo.choices, default=Tipo.SEMANAL)
+    fecha_inicio = models.DateField()
+    fecha_fin = models.DateField()
+    fecha_pago = models.DateField(null=True, blank=True)
+    estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.BORRADOR)
+    usuario_genera = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='nominas_generadas',
+    )
+    sellada_en = models.DateTimeField(null=True, blank=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Nómina semanal'
+        verbose_name_plural = 'Nóminas semanales'
+        ordering = ['-fecha_fin', 'tipo']
+        # No se pueden abrir dos nóminas del mismo tipo para el mismo
+        # periodo: es la primera línea de defensa contra pagar dos veces.
+        unique_together = ('tipo', 'fecha_inicio', 'fecha_fin')
+
+    def __str__(self):
+        return f'Nómina {self.get_tipo_display().lower()} {self.fecha_inicio} a {self.fecha_fin}'
+
+    @property
+    def folio(self):
+        """Folio legible para el PDF, al estilo del ejemplo de la sección 4
+        del documento (INTRA-2026-07-03-001)."""
+        return f'INTRA-{self.fecha_fin:%Y-%m-%d}-{self.pk:03d}' if self.pk else 'INTRA-borrador'
+
+    @property
+    def esta_sellada(self):
+        return self.estado == self.Estado.SELLADA
+
+
+class LineaNominaSemanal(models.Model):
+    """Una persona dentro de una nómina. Guarda los tres conceptos por
+    separado (sección 3.1 del documento: monto base / vale / bono-extra;
+    Administración confirmó que vale de gasolina y bono son el mismo
+    concepto). Son editables mientras la línea no esté sellada — sellarla es
+    lo que congela los montos y genera los Egresos."""
+
+    class TipoPersona(models.TextChoices):
+        TERAPEUTA = 'terapeuta', 'Terapeuta'
+        ADMINISTRATIVO = 'administrativo', 'Administrativo'
+
+    class MetodoPago(models.TextChoices):
+        TRANSFERENCIA = 'transferencia', 'Transferencia'
+        EFECTIVO = 'efectivo', 'Efectivo'
+        PENDIENTE = 'pendiente', 'Pendiente'
+
+    class EstatusPago(models.TextChoices):
+        PAGADO = 'pagado', 'Pagado'
+        PENDIENTE = 'pendiente', 'Pendiente de pago'
+
+    nomina = models.ForeignKey(NominaSemanal, on_delete=models.CASCADE, related_name='lineas')
+    persona = models.CharField(max_length=150)
+    tipo_persona = models.CharField(max_length=20, choices=TipoPersona.choices, default=TipoPersona.TERAPEUTA)
+    concepto = models.CharField(max_length=150, default='Pago a terapeuta')
+    citas_atendidas = models.PositiveIntegerField(default=0)
+    # null (no 0) cuando Recepción no está sincronizada para el periodo: un
+    # 0 se leería como "no generó ingresos", que es una afirmación distinta
+    # a "todavía no lo sabemos".
+    ingreso_generado = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    pago_base = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
+    vale_gasolina = models.DecimalField('Vale de gasolina / bono', max_digits=10, decimal_places=2, default=Decimal('0'))
+    extras = models.DecimalField('Bono extra / otros autorizados', max_digits=10, decimal_places=2, default=Decimal('0'))
+    metodo_pago = models.CharField(max_length=20, choices=MetodoPago.choices, default=MetodoPago.PENDIENTE)
+    estatus_pago = models.CharField(max_length=10, choices=EstatusPago.choices, default=EstatusPago.PENDIENTE)
+    observaciones = models.CharField(max_length=255, blank=True)
+    referencia_corte = models.CharField(max_length=60, blank=True)
+    # Se enciende cuando alguien corrige los montos a mano en el borrador.
+    # A partir de ahí, sincronizar de nuevo con ConsultorioWeb ya no los
+    # pisa: si Finanzas ajustó un monto es porque sabe algo que el corte de
+    # origen no, y perder esa corrección en la siguiente recarga sería peor
+    # que quedarse con un dato viejo (los datos que no son decisión de nadie
+    # —citas atendidas, desglose, ingreso generado— sí se siguen refrescando).
+    montos_editados = models.BooleanField(default=False)
+    # Desglose por paciente que entrega la API de ConsultorioWeb, para el
+    # botón "Ver detalle" de la sección 7 (revisar antes de sellar).
+    detalle_json = models.JSONField(default=list, blank=True)
+    sellada = models.BooleanField(default=False)
+    sellada_en = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Línea de nómina'
+        verbose_name_plural = 'Líneas de nómina'
+        ordering = ['persona']
+        unique_together = ('nomina', 'persona')
+
+    def __str__(self):
+        return f'{self.persona} · {self.nomina}'
+
+    @property
+    def total(self):
+        return self.pago_base + self.vale_gasolina + self.extras
+
+    @property
+    def pendiente(self):
+        return self.total if self.estatus_pago == self.EstatusPago.PENDIENTE else Decimal('0')
+
+    @property
+    def vale_pendiente(self):
+        return self.vale_gasolina if self.estatus_pago == self.EstatusPago.PENDIENTE else Decimal('0')
+
+    @property
+    def vale_entregado(self):
+        return self.vale_gasolina if self.estatus_pago == self.EstatusPago.PAGADO else Decimal('0')
 
 
 class Honorario(models.Model):

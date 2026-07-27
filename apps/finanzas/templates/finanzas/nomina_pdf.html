@@ -4,29 +4,35 @@
 <head>
 <meta charset="utf-8">
 <style>
-  @page { size: letter landscape; margin: 1.6cm; }
+  @page { size: letter landscape; margin: 1.4cm; }
   body { font-family: Helvetica, Arial, sans-serif; font-size: 9pt; color: #1B2C4F; }
   .encabezado { width: 100%; margin-bottom: 10px; }
   .encabezado table { width: 100%; }
   .encabezado img { height: 42px; }
   .titulo { font-size: 15pt; font-weight: bold; color: #1B2C4F; }
-  .subtitulo { font-size: 9pt; color: #555; margin-top: 2px; }
+  .folio {
+    display: inline-block; background-color: #EAF2FB; color: #2D5F8B;
+    padding: 2px 8px; border-radius: 8px; font-size: 7.5pt; font-weight: bold; margin-top: 3px;
+  }
+  .subtitulo { font-size: 8.5pt; color: #555; margin-top: 3px; }
   .estatus-badge {
     display: inline-block; padding: 3px 10px; border-radius: 10px;
     font-size: 8pt; font-weight: bold; color: #fff;
   }
-  .estatus-pagado { background-color: #1F8A5B; }
-  .estatus-pendiente { background-color: #C9622B; }
+  .estatus-sellada { background-color: #1F8A5B; }
+  .estatus-borrador { background-color: #C9622B; }
+  .nota-estatus { font-size: 7.5pt; color: #777; margin-top: 4px; }
   table.fin-pdf-tabla { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
   table.fin-pdf-tabla th {
     background-color: #1B2C4F; color: #fff; text-align: left;
-    padding: 5px 6px; font-size: 8pt; word-wrap: break-word;
+    padding: 5px 5px; font-size: 7.5pt; word-wrap: break-word;
   }
   table.fin-pdf-tabla td {
-    padding: 5px 6px; border-bottom: 1px solid #E6EAF2; font-size: 8.5pt;
+    padding: 5px 5px; border-bottom: 1px solid #E6EAF2; font-size: 8pt;
     word-wrap: break-word; overflow-wrap: break-word;
   }
   table.fin-pdf-tabla td.num { text-align: right; }
+  tr.fila-total td { background-color: #F3F5FA; font-weight: bold; border-top: 2px solid #1B2C4F; }
   .fin-pdf-totales { width: 100%; margin-top: 14px; }
   .fin-pdf-totales table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .fin-pdf-totales td {
@@ -36,7 +42,7 @@
   .fin-pdf-totales .label { display: block; font-size: 7.5pt; color: #555; margin-bottom: 3px; }
   .fin-pdf-totales .valor { display: block; font-size: 11pt; font-weight: bold; color: #1B2C4F; }
   .fin-pdf-vales { margin-top: 14px; }
-  .fin-pdf-vales-titulo { font-weight: bold; margin-bottom: 4px; }
+  .fin-pdf-vales-titulo { font-weight: bold; margin-bottom: 4px; font-size: 9pt; }
   .fin-pdf-pie { margin-top: 16px; font-size: 8pt; color: #888; }
 </style>
 </head>
@@ -47,15 +53,22 @@
       <tr>
         <td style="width: 60px;"><img src="{% static 'core/images/intra-logo.png' %}" alt="INTRA"></td>
         <td>
-          <div class="titulo">Nómina semanal INTRA</div>
+          <div class="titulo">Nómina {{ nomina.get_tipo_display|lower }} INTRA</div>
+          <div class="folio">{{ nomina.folio }}</div>
           <div class="subtitulo">
-            Periodo: {{ fecha_inicio|date:'d/m/Y' }} al {{ fecha_fin|date:'d/m/Y' }}
+            Periodo: {{ nomina.fecha_inicio|date:'d/m/Y' }} al {{ nomina.fecha_fin|date:'d/m/Y' }}<br>
+            Fecha de pago: {% if nomina.fecha_pago %}{{ nomina.fecha_pago|date:'d/m/Y' }}{% else %}por definir{% endif %}
+            {% if nomina.usuario_genera %} · Generó: {{ nomina.usuario_genera.get_full_name|default:nomina.usuario_genera.username }}{% endif %}
           </div>
         </td>
-        <td style="text-align: right;">
-          <span class="estatus-badge {% if estatus_general == 'pendiente' %}estatus-pendiente{% else %}estatus-pagado{% endif %}">
-            {% if estatus_general == 'pendiente' %}Pendiente{% else %}Pagado{% endif %}
+        <td style="text-align: right; width: 200px;">
+          <span class="estatus-badge {% if nomina.esta_sellada %}estatus-sellada{% else %}estatus-borrador{% endif %}">
+            Estatus: {{ nomina.get_estado_display }}
           </span>
+          <div class="nota-estatus">
+            {% if nomina.esta_sellada %}Los pagos marcados como pagados ya no se suman al pendiente por dispersar.
+            {% else %}Documento en borrador: los montos todavía pueden cambiar.{% endif %}
+          </div>
         </td>
       </tr>
     </table>
@@ -64,33 +77,42 @@
   <table class="fin-pdf-tabla">
     <thead>
       <tr>
-        <th>Nombre</th>
-        <th>Tipo</th>
-        <th>Concepto</th>
-        <th>Método</th>
-        <th>Estatus</th>
-        <th class="num">Pago base</th>
-        <th class="num">Vale gasolina</th>
-        <th class="num">Bono</th>
-        <th class="num">Total</th>
+        <th style="width: 15%;">Nombre</th>
+        <th style="width: 9%;">Tipo</th>
+        <th style="width: 13%;">Concepto</th>
+        <th style="width: 9%;">Método</th>
+        <th style="width: 10%;">Estatus pago</th>
+        <th class="num" style="width: 9%;">Pago base</th>
+        <th class="num" style="width: 9%;">Vale / bono</th>
+        <th class="num" style="width: 8%;">Extras</th>
+        <th class="num" style="width: 9%;">Total</th>
+        <th style="width: 9%;">Observaciones</th>
       </tr>
     </thead>
     <tbody>
-      {% for fila in filas %}
+      {% for l in lineas %}
       <tr>
-        <td>{{ fila.persona }}</td>
-        <td>Terapeuta</td>
-        <td>Pago a terapeuta</td>
-        <td>{{ fila.metodo_pago_display|default:'Pendiente de asignar' }}</td>
-        <td>{% if fila.estatus == 'pendiente' %}Pendiente de pago{% else %}Pagado{% endif %}</td>
-        <td class="num">{{ fila.pago_base|dinero }}</td>
-        <td class="num">{{ fila.vale|dinero }}</td>
-        <td class="num">{{ fila.bono|dinero }}</td>
-        <td class="num">{{ fila.total|dinero }}</td>
+        <td>{{ l.persona }}</td>
+        <td>{{ l.get_tipo_persona_display }}</td>
+        <td>{{ l.concepto }}</td>
+        <td>{{ l.get_metodo_pago_display }}</td>
+        <td>{{ l.get_estatus_pago_display }}</td>
+        <td class="num">{{ l.pago_base|dinero }}</td>
+        <td class="num">{{ l.vale_gasolina|dinero }}</td>
+        <td class="num">{{ l.extras|dinero }}</td>
+        <td class="num">{{ l.total|dinero }}</td>
+        <td>{{ l.observaciones|default:'—' }}</td>
       </tr>
       {% empty %}
-      <tr><td colspan="9">No hay egresos de nómina de terapeutas importados en este periodo.</td></tr>
+      <tr><td colspan="10">Esta nómina no tiene personas capturadas.</td></tr>
       {% endfor %}
+      {% if lineas %}
+      <tr class="fila-total">
+        <td colspan="8">TOTAL DEL PERIODO</td>
+        <td class="num">{{ totales.total_general|dinero }}</td>
+        <td></td>
+      </tr>
+      {% endif %}
     </tbody>
   </table>
 
@@ -118,18 +140,18 @@
   </div>
 
   <div class="fin-pdf-vales">
-    <div class="fin-pdf-vales-titulo">Detalle de vales de gasolina por persona</div>
+    <div class="fin-pdf-vales-titulo">Detalle de extras / vales de gasolina</div>
     <table class="fin-pdf-tabla">
       <thead>
         <tr><th>Persona</th><th class="num">Pendiente</th><th class="num">Entregado</th></tr>
       </thead>
       <tbody>
-        {% for fila in filas %}
-          {% if fila.vale_pendiente or fila.vale_entregado %}
+        {% for l in lineas %}
+          {% if l.vale_gasolina %}
           <tr>
-            <td>{{ fila.persona }}</td>
-            <td class="num">{{ fila.vale_pendiente|dinero }}</td>
-            <td class="num">{{ fila.vale_entregado|dinero }}</td>
+            <td>{{ l.persona }}</td>
+            <td class="num">{{ l.vale_pendiente|dinero }}</td>
+            <td class="num">{{ l.vale_entregado|dinero }}</td>
           </tr>
           {% endif %}
         {% empty %}
