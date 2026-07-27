@@ -37,6 +37,15 @@
 
   {% if aviso_sync %}<div class="fin-alert fin-alert-info">{{ aviso_sync }}</div>{% endif %}
 
+  {% if sin_recepcion %}
+  <div class="fin-alert fin-alert-info">
+    La columna <b>Ingreso generado</b> sale en “—” porque no hay citas de Recepción sincronizadas de este
+    periodo. Sincroniza el mismo rango en
+    <a href="{% url 'finanzas:reporte_recepcion' %}?fecha_inicio={{ fecha_inicio }}&amp;fecha_fin={{ fecha_fin }}">Reporte Recepción</a>
+    y esta columna se llena sola al volver. No afecta lo que se paga: el pago sale del corte, no de esta columna.
+  </div>
+  {% endif %}
+
   {% if nomina %}
   <div class="fin-card fin-card-pad fin-nomina-cabecera">
     <div>
@@ -114,7 +123,7 @@
             <td>{{ l.get_tipo_persona_display }}</td>
             <td>{{ l.concepto }}</td>
             <td class="num">{{ l.citas_atendidas }}</td>
-            <td class="num">{% if l.ingreso_generado is not None %}{{ l.ingreso_generado|dinero }}{% else %}<span class="fin-table-meta" title="No hay citas de Recepción sincronizadas para este periodo">—</span>{% endif %}</td>
+            <td class="num">{% if l.ingreso_generado_actual is not None %}{{ l.ingreso_generado_actual|dinero }}{% else %}<span class="fin-table-meta" title="No hay citas con asistencia de esta persona en Recepción para este periodo">—</span>{% endif %}</td>
             {% if l.sellada %}
             <td class="num">{{ l.pago_base|dinero }}</td>
             <td class="num">{{ l.vale_gasolina|dinero }}</td>

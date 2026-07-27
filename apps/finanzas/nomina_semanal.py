@@ -66,7 +66,10 @@ def calcular_ingreso_generado(persona, fecha_inicio, fecha_fin):
     """Ingreso de clínica que generó esa persona en el periodo, según las
     citas ya sincronizadas de Recepción. Regresa None (no 0) si no hay
     ninguna cita de esa persona en el rango: significa "todavía no lo
-    sabemos", no "no generó nada"."""
+    sabemos", no "no generó nada".
+
+    Para pintar la tabla completa usa `ingresos_generados_por_persona`, que
+    hace lo mismo en una sola consulta."""
     datos = CitaRecepcion.objects.filter(
         terapeuta=persona,
         estatus=CitaRecepcion.Estatus.SI_ASISTIO,
@@ -76,6 +79,28 @@ def calcular_ingreso_generado(persona, fecha_inicio, fecha_fin):
     if not datos['citas']:
         return None
     return datos['total'] or Decimal('0')
+
+
+def ingresos_generados_por_persona(fecha_inicio, fecha_fin):
+    """Lo mismo que `calcular_ingreso_generado` pero para todas las personas
+    de un periodo en una sola consulta, para pintarlo al vuelo en la tabla.
+
+    Se calcula al mostrar y no solo al sincronizar a propósito: el orden
+    natural de trabajo es abrir la nómina primero y sincronizar Recepción
+    después, y con un valor congelado en el momento de la sincronización la
+    columna se quedaba en "—" para siempre aunque Recepción ya tuviera los
+    datos.
+    """
+    filas = (
+        CitaRecepcion.objects.filter(
+            estatus=CitaRecepcion.Estatus.SI_ASISTIO,
+            fecha__gte=fecha_inicio,
+            fecha__lte=fecha_fin,
+        )
+        .values('terapeuta')
+        .annotate(total=Sum('costo'))
+    )
+    return {f['terapeuta']: (f['total'] or Decimal('0')) for f in filas}
 
 
 def obtener_nomina(tipo, fecha_inicio, fecha_fin):

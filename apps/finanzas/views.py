@@ -39,8 +39,9 @@ from .nomina_academia import (
     sellar_periodo_academia, totales_periodo_academia,
 )
 from .nomina_semanal import (
-    NominaError, marcar_pago, obtener_nomina, sellar_linea, sellar_periodo,
-    sincronizar_nomina, totales_nomina,
+    NominaError, calcular_ingreso_generado, ingresos_generados_por_persona,
+    marcar_pago, obtener_nomina, sellar_linea, sellar_periodo, sincronizar_nomina,
+    totales_nomina,
 )
 from .pdfs import render_pdf
 
@@ -591,6 +592,14 @@ def nomina_view(request):
             aviso_sync = f'No se pudo sincronizar con ConsultorioWeb: {exc}'
 
     lineas = list(nomina.lineas.all()) if nomina else []
+    # El ingreso generado se resuelve al mostrar, no al sincronizar: si
+    # Recepción se sincroniza después de la nómina (que es el orden normal),
+    # la columna se actualiza sola.
+    ingresos_recepcion = ingresos_generados_por_persona(fecha_inicio, fecha_fin)
+    for linea in lineas:
+        linea.ingreso_generado_actual = ingresos_recepcion.get(linea.persona)
+    sin_recepcion = tipo == NominaSemanal.Tipo.SEMANAL and lineas and not ingresos_recepcion
+
     contexto = {
         'vista_actual': 'nomina',
         'tipo': tipo,
@@ -601,6 +610,7 @@ def nomina_view(request):
         'lineas': lineas,
         'totales': totales_nomina(nomina) if nomina else None,
         'hay_por_sellar': any(not l.sellada and l.total > 0 for l in lineas),
+        'sin_recepcion': sin_recepcion,
         'metodos': LineaNominaSemanal.MetodoPago.choices,
         'estatus_pago_choices': LineaNominaSemanal.EstatusPago.choices,
         'form_linea': form_linea,
@@ -620,6 +630,9 @@ def nomina_linea_view(request, linea_id):
         LineaNominaSemanal.objects.select_related('nomina'), pk=linea_id,
     )
     detalle = linea.detalle_json if isinstance(linea.detalle_json, list) else []
+    linea.ingreso_generado_actual = calcular_ingreso_generado(
+        linea.persona, linea.nomina.fecha_inicio, linea.nomina.fecha_fin,
+    )
     contexto = {
         'vista_actual': 'nomina',
         'linea': linea,

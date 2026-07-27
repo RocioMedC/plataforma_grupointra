@@ -26,8 +26,8 @@
     <div class="fin-stat"><div class="fin-stat-label">Citas atendidas</div><div class="fin-stat-value">{{ linea.citas_atendidas }}</div></div>
     <div class="fin-stat">
       <div class="fin-stat-label">Ingreso generado</div>
-      <div class="fin-stat-value">{% if linea.ingreso_generado is not None %}{{ linea.ingreso_generado|dinero }}{% else %}—{% endif %}</div>
-      {% if linea.ingreso_generado is None %}<div class="fin-stat-sub">Sincroniza Recepción de este periodo para calcularlo</div>{% endif %}
+      <div class="fin-stat-value">{% if linea.ingreso_generado_actual is not None %}{{ linea.ingreso_generado_actual|dinero }}{% else %}—{% endif %}</div>
+      {% if linea.ingreso_generado_actual is None %}<div class="fin-stat-sub">Sincroniza Recepción de este periodo para calcularlo</div>{% endif %}
     </div>
     <div class="fin-stat"><div class="fin-stat-label">Pago base</div><div class="fin-stat-value">{{ linea.pago_base|dinero }}</div></div>
     <div class="fin-stat"><div class="fin-stat-label">Vale / bono</div><div class="fin-stat-value">{{ linea.vale_gasolina|dinero }}</div></div>
