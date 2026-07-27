@@ -15,7 +15,7 @@
     <span class="fin-banner-icon">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10"></path><path d="M6 10l6 6 6-6"></path><line x1="5" y1="20" x2="19" y2="20"></line></svg>
     </span>
-    <div class="fin-banner-text"><b>Cálculo automático por tabulador.</b> Captura las cantidades por concepto (horas clase, supervisión, mesa de trabajo); el total se calcula con el tabulador vigente en el periodo. No se puede capturar dos veces la misma nómina de un maestro en el mismo periodo.</div>
+    <div class="fin-banner-text"><b>Cálculo automático por tabulador, y sellado aparte de la captura.</b> Captura las cantidades por concepto (horas clase, supervisión, mesa de trabajo); el total se calcula con el tabulador vigente en el periodo. La nómina queda en Borrador: al sellarla —por docente o por periodo completo— se generan los egresos y ya no se puede editar. No se puede capturar dos veces la misma nómina de un maestro en el mismo periodo.</div>
   </div>
 
   <div class="fin-card fin-table-card">
@@ -75,6 +75,23 @@
   <div class="fin-card fin-table-card">
     <div class="fin-table-toolbar">
       <div class="fin-card-title">Nóminas de Academia capturadas</div>
+      <div class="fin-nomina-acciones">
+        {% if periodos %}
+        <form method="get" class="fin-inline-form" id="form-consolidado">
+          <select name="periodo" class="fin-input fin-input-mini" onchange="
+            var p = this.value.split('-');
+            window.location = '/finanzas/nomina-academia/periodo/' + p[0] + '/' + p[1] + '/descargar/';">
+            <option value="">Consolidado del periodo…</option>
+            {% for p in periodos %}
+            <option value="{{ p.periodo_anio }}-{{ p.periodo_mes }}">{{ p.etiqueta }}</option>
+            {% endfor %}
+          </select>
+        </form>
+        {% endif %}
+        {% if hay_borradores %}
+        <button type="button" class="fin-btn-outline" onclick="document.getElementById('dialog-sellar-periodo').showModal()">Sellar periodo</button>
+        {% endif %}
+      </div>
     </div>
     <div class="fin-table-wrap">
       <table class="fin-table">
@@ -84,7 +101,8 @@
             <th>Periodo</th>
             <th>Conceptos</th>
             <th>Método</th>
-            <th>Estatus</th>
+            <th>Estado</th>
+            <th>Estatus pago</th>
             <th class="num">Total</th>
             <th></th>
           </tr>
@@ -92,20 +110,47 @@
         <tbody>
           {% for n in nominas %}
           <tr>
-            <td>{{ n.maestro.nombre }}</td>
-            <td>{{ n.periodo_mes }}/{{ n.periodo_anio }}</td>
+            <td><b>{{ n.maestro.nombre }}</b></td>
+            <td>
+              {{ n.periodo_mes }}/{{ n.periodo_anio }}
+              {% if n.fecha_pago %}<div class="fin-table-meta">Pago: {{ n.fecha_pago|date:'d/m/Y' }}</div>{% endif %}
+            </td>
             <td>
               {% for c in n.conceptos.all %}
                 {{ c.get_concepto_display }} ({{ c.cantidad }}){% if not forloop.last %}, {% endif %}
               {% endfor %}
             </td>
             <td>{{ n.get_metodo_pago_display|default:'Pendiente de asignar' }}</td>
-            <td><span class="fin-badge fin-badge-{{ n.estatus }}">{{ n.get_estatus_display }}</span></td>
-            <td class="num">{{ n.total|dinero }}</td>
-            <td><a class="fin-btn-outline" href="{% url 'finanzas:nomina_academia_descargar' n.id %}">Descargar PDF</a></td>
+            <td><span class="fin-badge fin-badge-{% if n.esta_sellada %}vigente{% else %}pendiente{% endif %}">{{ n.get_estado_display }}</span></td>
+            <td>
+              {% if n.esta_sellada %}
+              <form method="post" class="fin-inline-form">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="estatus_academia">
+                <input type="hidden" name="id" value="{{ n.id }}">
+                <select name="estatus" class="fin-input fin-input-mini" onchange="this.form.submit()">
+                  {% for valor, etiqueta in estatus_choices %}
+                  <option value="{{ valor }}"{% if n.estatus == valor %} selected{% endif %}>{{ etiqueta }}</option>
+                  {% endfor %}
+                </select>
+              </form>
+              {% else %}<span class="fin-table-meta">—</span>{% endif %}
+            </td>
+            <td class="num"><b>{{ n.total|dinero }}</b></td>
+            <td class="fin-acciones-celda">
+              {% if not n.esta_sellada %}
+              <form method="post" class="fin-inline-form">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="sellar_academia">
+                <input type="hidden" name="id" value="{{ n.id }}">
+                <button type="submit" class="fin-btn-mini fin-btn-mini-activo">Sellar</button>
+              </form>
+              {% endif %}
+              <a class="fin-btn-mini" href="{% url 'finanzas:nomina_academia_descargar' n.id %}">PDF</a>
+            </td>
           </tr>
           {% empty %}
-          <tr><td colspan="7" class="fin-empty">Todavía no hay nóminas de Academia capturadas.</td></tr>
+          <tr><td colspan="8" class="fin-empty">Todavía no hay nóminas de Academia capturadas.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -113,6 +158,40 @@
   </div>
 
 </div>
+
+{% if hay_borradores %}
+<dialog id="dialog-sellar-periodo" class="fin-modal">
+  <form method="post" class="fin-modal-form">
+    {% csrf_token %}
+    <input type="hidden" name="accion" value="sellar_periodo_academia">
+    <div class="fin-modal-header">
+      <div class="fin-card-title">Sellar el periodo completo</div>
+      <button type="button" class="fin-modal-close" onclick="this.closest('dialog').close()" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="fin-modal-grid">
+      <div class="fin-field fin-field-full">
+        <p class="fin-table-meta">Se sellarán todas las nóminas en borrador de ese mes y se generarán sus egresos. Después de sellar, la corrección es un Ajuste.</p>
+      </div>
+      <div class="fin-field">
+        <label for="sellar-mes">Mes</label>
+        <input type="number" id="sellar-mes" name="periodo_mes" min="1" max="12" value="{{ mes_actual }}" class="fin-input">
+      </div>
+      <div class="fin-field">
+        <label for="sellar-anio">Año</label>
+        <input type="number" id="sellar-anio" name="periodo_anio" min="2020" value="{{ anio_actual }}" class="fin-input">
+      </div>
+      <div class="fin-field fin-field-full">
+        <label for="sellar-fecha-pago">Fecha de pago</label>
+        <input type="date" id="sellar-fecha-pago" name="fecha_pago" value="{{ hoy }}" class="fin-input">
+      </div>
+    </div>
+    <div class="fin-modal-actions">
+      <button type="button" class="fin-btn-outline" onclick="this.closest('dialog').close()">Cancelar</button>
+      <button type="submit" class="fin-btn-primary fin-btn-activo">Sellar periodo</button>
+    </div>
+  </form>
+</dialog>
+{% endif %}
 
 <dialog id="dialog-maestro" class="fin-modal">
   <form method="post" class="fin-modal-form">
@@ -189,6 +268,19 @@
     <div class="fin-modal-grid">
       <div class="fin-field fin-field-full">
         <label for="{{ form.maestro.id_for_label }}">Maestro</label>
+        {# El catálogo "debe poder filtrarse por nombre" (sección 6.1). El
+           buscador oculta las opciones que no coinciden en vez de sustituir
+           el <select>, para no perder la validación del ModelChoiceField. #}
+        <input type="search" id="buscar-maestro" class="fin-input" placeholder="Buscar por nombre…"
+               autocomplete="off" style="margin-bottom:8px;"
+               oninput="(function(q, sel){
+                 q = q.toLowerCase();
+                 for (var i = 0; i < sel.options.length; i++) {
+                   var o = sel.options[i];
+                   o.hidden = q !== '' && o.value !== '' && o.text.toLowerCase().indexOf(q) === -1;
+                 }
+                 if (sel.selectedOptions[0] && sel.selectedOptions[0].hidden) { sel.selectedIndex = 0; }
+               })(this.value, document.getElementById('{{ form.maestro.id_for_label }}'))">
         {{ form.maestro }}
         {% if form.maestro.errors %}<span class="fin-field-error">{{ form.maestro.errors.0 }}</span>{% endif %}
       </div>

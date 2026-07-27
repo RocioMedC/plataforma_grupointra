@@ -48,13 +48,16 @@
         <td>
           <div class="titulo">Nómina Academia</div>
           <div class="subtitulo">
-            {{ nomina.maestro.nombre }} · periodo {{ nomina.periodo_mes }}/{{ nomina.periodo_anio }}
+            {{ nomina.maestro.nombre }} · periodo {{ nomina.periodo_mes }}/{{ nomina.periodo_anio }}<br>
+            Fecha de pago: {% if nomina.fecha_pago %}{{ nomina.fecha_pago|date:'d/m/Y' }}{% else %}por definir{% endif %}
+            {% if nomina.usuario_genera %} · Generó: {{ nomina.usuario_genera.get_full_name|default:nomina.usuario_genera.username }}{% endif %}
           </div>
         </td>
         <td style="text-align: right;">
-          <span class="estatus-badge {% if nomina.estatus == 'pendiente' %}estatus-pendiente{% else %}estatus-pagado{% endif %}">
-            {{ nomina.get_estatus_display }}
+          <span class="estatus-badge {% if nomina.esta_sellada %}estatus-pagado{% else %}estatus-pendiente{% endif %}">
+            {{ nomina.get_estado_display }}
           </span>
+          <div style="font-size: 7.5pt; color: #777; margin-top: 4px;">Pago: {{ nomina.get_estatus_display }}</div>
         </td>
       </tr>
     </table>

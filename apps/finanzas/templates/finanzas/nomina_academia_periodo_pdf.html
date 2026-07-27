@@ -1,0 +1,127 @@
+{% load finanzas_extras static %}
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: letter portrait; margin: 1.5cm; }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 9pt; color: #1B2C4F; }
+  .encabezado { width: 100%; margin-bottom: 10px; }
+  .encabezado table { width: 100%; }
+  .encabezado img { height: 42px; }
+  .titulo { font-size: 15pt; font-weight: bold; }
+  .subtitulo { font-size: 8.5pt; color: #555; margin-top: 3px; }
+  .estatus-badge {
+    display: inline-block; padding: 3px 10px; border-radius: 10px;
+    font-size: 8pt; font-weight: bold; color: #fff; background-color: #1B2C4F;
+  }
+  table.fin-pdf-tabla { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
+  table.fin-pdf-tabla th {
+    background-color: #1B2C4F; color: #fff; text-align: left;
+    padding: 5px 6px; font-size: 8pt; word-wrap: break-word;
+  }
+  table.fin-pdf-tabla td {
+    padding: 5px 6px; border-bottom: 1px solid #E6EAF2; font-size: 8.5pt;
+    word-wrap: break-word; overflow-wrap: break-word;
+  }
+  table.fin-pdf-tabla td.num { text-align: right; }
+  tr.fila-docente td { background-color: #F7F9FC; font-weight: bold; }
+  tr.fila-total td { background-color: #F3F5FA; font-weight: bold; border-top: 2px solid #1B2C4F; font-size: 9.5pt; }
+  .fin-pdf-totales { width: 100%; margin-top: 14px; }
+  .fin-pdf-totales table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .fin-pdf-totales td {
+    background-color: #F3F5FA; padding: 8px; text-align: center; border: 1px solid #E6EAF2;
+  }
+  .fin-pdf-totales .label { display: block; font-size: 7.5pt; color: #555; margin-bottom: 3px; }
+  .fin-pdf-totales .valor { display: block; font-size: 11pt; font-weight: bold; }
+  .fin-pdf-pie { margin-top: 16px; font-size: 8pt; color: #888; }
+</style>
+</head>
+<body>
+
+  <div class="encabezado">
+    <table>
+      <tr>
+        <td style="width: 60px;"><img src="{% static 'core/images/intra-logo.png' %}" alt="INTRA"></td>
+        <td>
+          <div class="titulo">Nómina Academia · consolidado del periodo</div>
+          <div class="subtitulo">
+            Periodo: {{ periodo_etiqueta }}<br>
+            Generó: {{ usuario_genera.get_full_name|default:usuario_genera.username }}
+          </div>
+        </td>
+        <td style="text-align: right; width: 120px;">
+          <span class="estatus-badge">{{ totales.docentes }} docente{{ totales.docentes|pluralize:"s" }}</span>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <table class="fin-pdf-tabla">
+    <thead>
+      <tr>
+        <th style="width: 26%;">Docente</th>
+        <th style="width: 24%;">Concepto</th>
+        <th class="num" style="width: 10%;">Cantidad</th>
+        <th class="num" style="width: 12%;">Tarifa</th>
+        <th class="num" style="width: 14%;">Subtotal</th>
+        <th style="width: 14%;">Estado</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for n in nominas %}
+        {% for c in n.conceptos.all %}
+        <tr>
+          <td>{% if forloop.first %}{{ n.maestro.nombre }}{% endif %}</td>
+          <td>{{ c.get_concepto_display }}{% if c.descripcion %} · {{ c.descripcion }}{% endif %}</td>
+          <td class="num">{{ c.cantidad }}</td>
+          <td class="num">{{ c.tarifa|dinero }}</td>
+          <td class="num">{{ c.subtotal|dinero }}</td>
+          <td>{% if forloop.first %}{{ n.get_estado_display }}{% endif %}</td>
+        </tr>
+        {% endfor %}
+        <tr class="fila-docente">
+          <td colspan="4">Total {{ n.maestro.nombre }} · {{ n.get_metodo_pago_display|default:'método por definir' }}</td>
+          <td class="num">{{ n.total|dinero }}</td>
+          <td>{{ n.get_estatus_display }}</td>
+        </tr>
+      {% empty %}
+      <tr><td colspan="6">No hay nóminas de Academia capturadas en este periodo.</td></tr>
+      {% endfor %}
+      {% if nominas %}
+      <tr class="fila-total">
+        <td colspan="4">TOTAL GENERAL DEL PERIODO</td>
+        <td class="num">{{ totales.total_general|dinero }}</td>
+        <td></td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  <div class="fin-pdf-totales">
+    <table>
+      <tr>
+        <td>
+          <span class="label">Total transferencia</span>
+          <span class="valor">{{ totales.total_transferencia|dinero }}</span>
+        </td>
+        <td>
+          <span class="label">Total efectivo</span>
+          <span class="valor">{{ totales.total_efectivo|dinero }}</span>
+        </td>
+        <td>
+          <span class="label">Pendiente de pago</span>
+          <span class="valor">{{ totales.total_pendiente|dinero }}</span>
+        </td>
+        <td>
+          <span class="label">Total general</span>
+          <span class="valor">{{ totales.total_general|dinero }}</span>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="fin-pdf-pie">Generado el {{ generado_en|date:'d/m/Y H:i' }}</div>
+
+</body>
+</html>

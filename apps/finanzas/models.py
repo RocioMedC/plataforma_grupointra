@@ -435,11 +435,25 @@ class NominaAcademia(models.Model):
         PAGADO = 'pagado', 'Pagado'
         PENDIENTE = 'pendiente', 'Pendiente'
 
+    class Estado(models.TextChoices):
+        BORRADOR = 'borrador', 'Borrador'
+        SELLADA = 'sellada', 'Sellada'
+
     maestro = models.ForeignKey(Maestro, on_delete=models.PROTECT, related_name='nominas')
     periodo_mes = models.PositiveSmallIntegerField()
     periodo_anio = models.PositiveSmallIntegerField()
     metodo_pago = models.CharField(max_length=20, choices=MetodoPago.choices, blank=True)
     estatus = models.CharField(max_length=10, choices=Estatus.choices, default=Estatus.PENDIENTE)
+    # `estado` es el ciclo de vida del documento (se captura en Borrador, se
+    # sella y ahí nacen los Egresos) y `estatus` es el del dinero
+    # (pendiente/pagado). Misma separación que en NominaSemanal.
+    estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.BORRADOR)
+    fecha_pago = models.DateField(null=True, blank=True)
+    usuario_genera = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='nominas_academia_generadas',
+    )
+    sellada_en = models.DateTimeField(null=True, blank=True)
     total = models.DecimalField(max_digits=10, decimal_places=2, editable=False, default=Decimal('0'))
 
     class Meta:
@@ -453,6 +467,10 @@ class NominaAcademia(models.Model):
 
     def __str__(self):
         return f'{self.maestro} · {self.periodo_mes}/{self.periodo_anio}'
+
+    @property
+    def esta_sellada(self):
+        return self.estado == self.Estado.SELLADA
 
 
 class ConceptoNominaAcademia(models.Model):

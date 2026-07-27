@@ -34,7 +34,10 @@ from .models import (
     Honorario, Ingreso, LineaNominaSemanal, Maestro, NominaAcademia, NominaSemanal,
     TabuladorAcademia,
 )
-from .nomina_academia import NominaAcademiaError, capturar_nomina_academia
+from .nomina_academia import (
+    NominaAcademiaError, capturar_nomina_academia, sellar_nomina_academia,
+    sellar_periodo_academia, totales_periodo_academia,
+)
 from .nomina_semanal import (
     NominaError, marcar_pago, obtener_nomina, sellar_linea, sellar_periodo,
     sincronizar_nomina, totales_nomina,
@@ -821,9 +824,11 @@ def donativos_view(request):
 def nomina_academia_view(request):
     """Captura la nómina de Academia por maestro/periodo: selecciona
     maestro, captura cantidades por concepto (horas clase, supervisión,
-    mesa de trabajo, más un concepto manual autorizado opcional), calcula
-    el total con los tabuladores vigentes y genera un Egreso por concepto
-    (sección 6 del documento de requerimientos)."""
+    mesa de trabajo, más un concepto manual autorizado opcional) y calcula
+    el total con los tabuladores vigentes (sección 6 del documento).
+
+    La captura deja la nómina en Borrador; los Egresos se generan al sellar,
+    por docente o por periodo completo."""
     hoy = timezone.now().date()
 
     form = NominaAcademiaCaptureForm(initial={'periodo_mes': hoy.month, 'periodo_anio': hoy.year})
@@ -842,6 +847,35 @@ def nomina_academia_view(request):
             if form_tabulador_academia.is_valid():
                 _guardar_con_bitacora(request, form_tabulador_academia, 'Tabulador de Academia registrado correctamente.')
                 return redirect('finanzas:nomina_academia')
+        elif accion == 'sellar_academia':
+            nomina = get_object_or_404(NominaAcademia, pk=request.POST.get('id'))
+            try:
+                sellar_nomina_academia(nomina, request.user, _fecha_desde_post(request, 'fecha_pago'))
+                messages.success(
+                    request,
+                    f'Nómina de {nomina.maestro} sellada: se generaron sus egresos por '
+                    f'{_dinero(nomina.total)}.',
+                )
+            except NominaAcademiaError as exc:
+                messages.error(request, str(exc))
+            return redirect('finanzas:nomina_academia')
+        elif accion == 'sellar_periodo_academia':
+            mes = int(request.POST.get('periodo_mes') or hoy.month)
+            anio = int(request.POST.get('periodo_anio') or hoy.year)
+            try:
+                resultado = sellar_periodo_academia(
+                    mes, anio, request.user, _fecha_desde_post(request, 'fecha_pago'),
+                )
+                mensaje = f"Periodo {mes}/{anio} sellado: {resultado['selladas']} docente(s)."
+                if resultado['omitidas']:
+                    mensaje += f" {resultado['omitidas']} se omitieron por no tener conceptos con monto."
+                messages.success(request, mensaje)
+            except NominaAcademiaError as exc:
+                messages.error(request, str(exc))
+            return redirect('finanzas:nomina_academia')
+        elif accion == 'estatus_academia':
+            _actualizar_estatus_simple(request, NominaAcademia, 'estatus', NominaAcademia.Estatus.values)
+            return redirect('finanzas:nomina_academia')
         else:
             form = NominaAcademiaCaptureForm(request.POST)
             if form.is_valid():
@@ -854,29 +888,43 @@ def nomina_academia_view(request):
                         cantidades=form.cantidades(),
                         concepto_manual_descripcion=form.cleaned_data['concepto_manual_descripcion'],
                         concepto_manual_monto=form.cleaned_data['concepto_manual_monto'],
+                        usuario=request.user,
                     )
                     messages.success(
                         request,
-                        f"Nómina de Academia capturada: {nomina.maestro} · "
-                        f"{nomina.periodo_mes}/{nomina.periodo_anio} · total {_dinero(nomina.total)}.",
+                        f"Nómina de Academia capturada en borrador: {nomina.maestro} · "
+                        f"{nomina.periodo_mes}/{nomina.periodo_anio} · total {_dinero(nomina.total)}. "
+                        'Revísala y séllala para generar los egresos.',
                     )
                 except (DuplicadoError, NominaAcademiaError) as exc:
                     messages.error(request, str(exc))
                 return redirect('finanzas:nomina_academia')
 
     nominas = (
-        NominaAcademia.objects.select_related('maestro')
+        NominaAcademia.objects.select_related('maestro', 'usuario_genera')
         .prefetch_related('conceptos')
         .order_by('-periodo_anio', '-periodo_mes')[:50]
     )
+    periodos = (
+        NominaAcademia.objects.values('periodo_anio', 'periodo_mes')
+        .distinct().order_by('-periodo_anio', '-periodo_mes')[:12]
+    )
+    for p in periodos:
+        p['etiqueta'] = f"{MESES_ABREV[p['periodo_mes']]} {p['periodo_anio']}"
     contexto = {
         'vista_actual': 'nomina_academia',
         'form': form,
         'form_maestro': form_maestro,
         'form_tabulador_academia': form_tabulador_academia,
         'nominas': nominas,
+        'periodos': periodos,
+        'hay_borradores': any(not n.esta_sellada for n in nominas),
+        'estatus_choices': NominaAcademia.Estatus.choices,
         'maestros': Maestro.objects.order_by('-activo', 'nombre'),
         'tabuladores_academia': TabuladorAcademia.objects.order_by('concepto', '-vigente_desde'),
+        'hoy': hoy.isoformat(),
+        'mes_actual': hoy.month,
+        'anio_actual': hoy.year,
     }
     return render(request, 'finanzas/nomina_academia.html', contexto)
 
@@ -884,7 +932,8 @@ def nomina_academia_view(request):
 @acceso_finanzas_requerido
 def nomina_academia_descargar_view(request, nomina_id):
     nomina = get_object_or_404(
-        NominaAcademia.objects.select_related('maestro').prefetch_related('conceptos'), pk=nomina_id,
+        NominaAcademia.objects.select_related('maestro', 'usuario_genera').prefetch_related('conceptos'),
+        pk=nomina_id,
     )
     es_pendiente = nomina.estatus == NominaAcademia.Estatus.PENDIENTE
     contexto = {
@@ -897,6 +946,25 @@ def nomina_academia_descargar_view(request, nomina_id):
     }
     nombre_archivo = f'nomina_academia_{nomina.maestro.nombre}_{nomina.periodo_mes}_{nomina.periodo_anio}.pdf'.replace(' ', '_')
     return render_pdf('finanzas/nomina_academia_pdf.html', contexto, nombre_archivo)
+
+
+@acceso_finanzas_requerido
+def nomina_academia_periodo_descargar_view(request, anio, mes):
+    """Consolidado del periodo: todos los docentes del mes en un solo
+    documento, con total por docente y total general (sección 6.1 del
+    documento, "Totales")."""
+    nominas, totales = totales_periodo_academia(mes, anio)
+    contexto = {
+        'nominas': nominas,
+        'totales': totales,
+        'periodo_mes': mes,
+        'periodo_anio': anio,
+        'periodo_etiqueta': f'{MESES_ABREV[mes]} {anio}' if 1 <= mes <= 12 else f'{mes}/{anio}',
+        'usuario_genera': request.user,
+        'generado_en': timezone.now(),
+    }
+    nombre_archivo = f'nomina_academia_periodo_{anio}_{mes:02d}.pdf'
+    return render_pdf('finanzas/nomina_academia_periodo_pdf.html', contexto, nombre_archivo)
 
 
 @acceso_finanzas_requerido
