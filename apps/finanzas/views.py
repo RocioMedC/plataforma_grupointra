@@ -714,17 +714,34 @@ def reporte_recepcion_view(request):
         return redirect('finanzas:reporte_recepcion')
 
     form_upload = ReporteRecepcionUploadForm()
-    fecha_inicio = request.GET.get('fecha_inicio') or str(hoy - timedelta(weeks=4))
-    fecha_fin = request.GET.get('fecha_fin') or str(hoy)
+    fecha_inicio = _fecha_desde_query(request, 'fecha_inicio') or (hoy - timedelta(weeks=4))
+    fecha_fin = _fecha_desde_query(request, 'fecha_fin') or hoy
+    terapeuta = request.GET.get('terapeuta') or ''
 
-    citas = CitaRecepcion.objects.all()
+    # El rango y el terapeuta filtran de verdad lo que se muestra. Antes solo
+    # servían para sincronizar, y los KPIs, el ranking y el comparativo se
+    # calculaban sobre TODO el histórico — un reporte de julio mostrando
+    # números de todo el año.
+    citas = CitaRecepcion.objects.filter(fecha__gte=fecha_inicio, fecha__lte=fecha_fin)
+    if terapeuta:
+        citas = citas.filter(terapeuta=terapeuta)
+
+    asistidas = citas.filter(estatus=CitaRecepcion.Estatus.SI_ASISTIO)
     total_citas = citas.count()
-    total_asistidas = citas.filter(estatus=CitaRecepcion.Estatus.SI_ASISTIO).count()
-    total_ingresos_generados = _suma(Ingreso.objects.filter(cita_recepcion__isnull=False))
+    total_asistidas = asistidas.count()
+    # Pacientes distintos atendidos (criterio 6 del documento: los datos de
+    # recepción deben alimentar también el conteo de pacientes).
+    total_pacientes = asistidas.values('paciente').distinct().count()
+    total_ingresos_generados = _suma(
+        Ingreso.objects.filter(cita_recepcion__in=citas)
+    )
+    terapeutas = (
+        CitaRecepcion.objects.filter(fecha__gte=fecha_inicio, fecha__lte=fecha_fin)
+        .values_list('terapeuta', flat=True).distinct().order_by('terapeuta')
+    )
 
     ranking = (
-        citas.filter(estatus=CitaRecepcion.Estatus.SI_ASISTIO)
-        .values('terapeuta')
+        asistidas.values('terapeuta')
         .annotate(citas_atendidas=Count('id'), total_generado=Sum('costo'))
         .order_by('-total_generado')[:10]
     )
@@ -732,8 +749,7 @@ def reporte_recepcion_view(request):
         fila['total_generado_fmt'] = _dinero(fila['total_generado'] or Decimal('0'))
 
     por_metodo = (
-        citas.filter(estatus=CitaRecepcion.Estatus.SI_ASISTIO)
-        .exclude(metodo_pago='')
+        asistidas.exclude(metodo_pago='')
         .values('metodo_pago')
         .annotate(total=Sum('costo'), citas=Count('id'))
         .order_by('-total')
@@ -746,11 +762,14 @@ def reporte_recepcion_view(request):
     contexto = {
         'vista_actual': 'reporte_recepcion',
         'form_upload': form_upload,
-        'fecha_inicio': fecha_inicio,
-        'fecha_fin': fecha_fin,
+        'fecha_inicio': fecha_inicio.isoformat(),
+        'fecha_fin': fecha_fin.isoformat(),
+        'terapeuta': terapeuta,
+        'terapeutas': terapeutas,
         'api_configurada': bool(settings.CONSULTORIOWEB_API_URL),
         'total_citas': total_citas,
         'total_asistidas': total_asistidas,
+        'total_pacientes': total_pacientes,
         'total_ingresos_generados': _dinero(total_ingresos_generados),
         'ranking': ranking,
         'por_metodo': por_metodo,

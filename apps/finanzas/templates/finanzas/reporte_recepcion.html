@@ -17,12 +17,31 @@
     <div class="fin-banner-text"><b>Solo cuenta como ingreso una cita en estatus "Sí asistió"</b>, con método de pago distinto de "Pase" y costo mayor a $0. Si vuelves a sincronizar o importar el mismo periodo con un estatus corregido, el ingreso se actualiza o se elimina automáticamente.</div>
   </div>
 
-  <form id="form-sincronizar-recepcion" method="post" class="fin-card fin-card-pad fin-filter-form">
-    {% csrf_token %}
-    <input type="hidden" name="accion" value="sincronizar">
+  {# Un solo rango manda: el que se ve en pantalla es el que se sincroniza.
+     El formulario GET filtra lo que se muestra; el POST de sincronizar
+     (que dispara el botón del encabezado) reusa esas mismas fechas. #}
+  <form method="get" class="fin-card fin-card-pad fin-filter-form">
     <div class="fin-field"><label>Desde</label><input type="date" name="fecha_inicio" value="{{ fecha_inicio }}"></div>
     <div class="fin-field"><label>Hasta</label><input type="date" name="fecha_fin" value="{{ fecha_fin }}"></div>
+    <div class="fin-field">
+      <label>Terapeuta</label>
+      <select name="terapeuta">
+        <option value="">— Todos —</option>
+        {% for t in terapeutas %}
+        <option value="{{ t }}"{% if terapeuta == t %} selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="fin-btn-outline">Filtrar</button>
+    <a class="fin-btn-outline" href="{% url 'finanzas:reporte_recepcion' %}">Limpiar</a>
     {% if not api_configurada %}<span class="fin-empty">ConsultorioWeb no está configurado en este entorno.</span>{% endif %}
+  </form>
+
+  <form id="form-sincronizar-recepcion" method="post" hidden>
+    {% csrf_token %}
+    <input type="hidden" name="accion" value="sincronizar">
+    <input type="hidden" name="fecha_inicio" value="{{ fecha_inicio }}">
+    <input type="hidden" name="fecha_fin" value="{{ fecha_fin }}">
   </form>
 
   <details class="fin-card fin-card-pad">
@@ -40,12 +59,17 @@
 
   <div class="fin-kpi-grid">
     <div class="fin-stat">
-      <div class="fin-stat-label">Citas importadas</div>
+      <div class="fin-stat-label">Citas en el periodo</div>
       <div class="fin-stat-value">{{ total_citas }}</div>
     </div>
     <div class="fin-stat">
       <div class="fin-stat-label">Citas con asistencia confirmada</div>
       <div class="fin-stat-value">{{ total_asistidas }}</div>
+    </div>
+    <div class="fin-stat">
+      <div class="fin-stat-label">Pacientes atendidos</div>
+      <div class="fin-stat-value">{{ total_pacientes }}</div>
+      <div class="fin-stat-sub">Pacientes distintos con al menos una asistencia</div>
     </div>
     <div class="fin-stat">
       <div class="fin-stat-label">Ingresos generados desde Recepción</div>
