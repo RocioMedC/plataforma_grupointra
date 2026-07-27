@@ -218,4 +218,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ruidosa en vez de intentar conectarse a algo adivinado.
 CONSULTORIOWEB_API_URL = os.environ.get('CONSULTORIOWEB_API_URL', '')
 CONSULTORIOWEB_API_KEY = os.environ.get('CONSULTORIOWEB_API_KEY', '')
+# Segundos de espera por llamada. Holgado a propósito: ese servicio se
+# duerme cuando no se usa y la primera llamada paga el arranque en frío
+# (ya despierto contesta en menos de 5s hasta para un año de citas).
+CONSULTORIOWEB_TIMEOUT = int(os.environ.get('CONSULTORIOWEB_TIMEOUT', '45'))
 
