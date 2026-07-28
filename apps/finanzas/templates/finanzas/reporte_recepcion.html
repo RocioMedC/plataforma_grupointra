@@ -17,9 +17,11 @@
     <div class="fin-banner-text"><b>Solo cuenta como ingreso una cita en estatus "Sí asistió"</b>, con método de pago distinto de "Pase" y costo mayor a $0. Si vuelves a sincronizar o importar el mismo periodo con un estatus corregido, el ingreso se actualiza o se elimina automáticamente.</div>
   </div>
 
-  {# Un solo rango manda: el que se ve en pantalla es el que se sincroniza.
-     El formulario GET filtra lo que se muestra; el POST de sincronizar
-     (que dispara el botón del encabezado) reusa esas mismas fechas. #}
+  {% comment %}
+    Un solo rango manda: el que se ve en pantalla es el que se sincroniza.
+    El formulario GET filtra lo que se muestra; el POST de sincronizar
+    (que dispara el botón del encabezado) reusa esas mismas fechas.
+  {% endcomment %}
   <form method="get" class="fin-card fin-card-pad fin-filter-form">
     <div class="fin-field"><label>Desde</label><input type="date" name="fecha_inicio" value="{{ fecha_inicio }}"></div>
     <div class="fin-field"><label>Hasta</label><input type="date" name="fecha_fin" value="{{ fecha_fin }}"></div>

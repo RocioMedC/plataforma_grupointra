@@ -24,8 +24,10 @@
   <form method="get" class="fin-card fin-card-pad fin-filter-form">
     <div class="fin-field">
       <label>Tipo de nómina</label>
-      {# Los tres tipos comparten el periodo, así que cambiar de tipo
-         conserva las fechas en vez de reencuadrarlas. #}
+      {% comment %}
+        Los tres tipos comparten el periodo, así que cambiar de tipo
+        conserva las fechas en vez de reencuadrarlas.
+      {% endcomment %}
       <select name="tipo" onchange="this.form.submit();">
         {% for valor, etiqueta in tipos %}
         <option value="{{ valor }}"{% if tipo == valor %} selected{% endif %}>{{ etiqueta }}</option>
