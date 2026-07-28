@@ -25,7 +25,14 @@ def importar_cita(fila):
     cambiaron, y lo elimina si un ajuste de estatus hace que ya no cuente
     (ej. una cita se corrige de 'Sí asistió' a 'Canceló'). Así se cumple la
     regla de 'permitir recalcular reportes si se corrige el estatus'."""
-    cita, creada = CitaRecepcion.objects.select_related('ingreso').update_or_create(
+    # Sin `select_related('ingreso')` a propósito. `update_or_create` emite un
+    # SELECT ... FOR UPDATE, y traer de paso el Ingreso —que es una relación
+    # opcional— obliga a un LEFT OUTER JOIN. Postgres rechaza esa combinación
+    # ("FOR UPDATE cannot be applied to the nullable side of an outer join") y
+    # tumba la sincronización con un 500. SQLite ignora el FOR UPDATE, así que
+    # en desarrollo no se notaba. El ahorro era una consulta por cita; no vale
+    # el riesgo.
+    cita, creada = CitaRecepcion.objects.update_or_create(
         fecha=fila['fecha'], hora=fila['hora'], paciente=fila['paciente'],
         terapeuta=fila['terapeuta'], servicio=fila['servicio'],
         defaults={
