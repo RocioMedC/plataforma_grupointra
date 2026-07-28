@@ -168,6 +168,7 @@ body { font-family: 'Work Sans', system-ui, sans-serif; color: #1B2C4F; }
 .fin-table-meta { font-size: 12px; color: #7C879B; }
 
 /* --- Nómina: cabecera del periodo y edición en línea de la tabla --- */
+.fin-periodo-nav { display: inline-flex; align-items: center; gap: 6px; }
 .fin-nomina-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .fin-nomina-acciones { display: flex; align-items: center; gap: 10px; }
 .fin-inline-form { display: inline; }

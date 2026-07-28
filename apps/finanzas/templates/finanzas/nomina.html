@@ -24,7 +24,7 @@
   <form method="get" class="fin-card fin-card-pad fin-filter-form">
     <div class="fin-field">
       <label>Tipo de nómina</label>
-      <select name="tipo">
+      <select name="tipo" onchange="this.form.fecha_inicio.value=''; this.form.fecha_fin.value=''; this.form.submit();">
         {% for valor, etiqueta in tipos %}
         <option value="{{ valor }}"{% if tipo == valor %} selected{% endif %}>{{ etiqueta }}</option>
         {% endfor %}
@@ -33,6 +33,14 @@
     <div class="fin-field"><label>Desde</label><input type="date" name="fecha_inicio" value="{{ fecha_inicio }}"></div>
     <div class="fin-field"><label>Hasta</label><input type="date" name="fecha_fin" value="{{ fecha_fin }}"></div>
     <button type="submit" class="fin-btn-outline">Ver periodo</button>
+    <span class="fin-periodo-nav">
+      <a class="fin-btn-mini" href="{{ url_anterior }}" title="Periodo anterior">&larr; Anterior</a>
+      <a class="fin-btn-mini" href="{{ url_periodo_actual }}">Periodo en curso</a>
+      <a class="fin-btn-mini" href="{{ url_siguiente }}" title="Periodo siguiente">Siguiente &rarr;</a>
+    </span>
+    {% if es_semanal %}
+    <span class="fin-table-meta fin-field-full">La semana de nómina va de <b>viernes a jueves</b>, y el pago se entrega el jueves que cierra el periodo.</span>
+    {% endif %}
   </form>
 
   {% if aviso_sync %}<div class="fin-alert fin-alert-info">{{ aviso_sync }}</div>{% endif %}
@@ -245,7 +253,8 @@
       </div>
       <div class="fin-field fin-field-full">
         <label for="fecha-pago">Fecha de pago</label>
-        <input type="date" id="fecha-pago" name="fecha_pago" value="{{ hoy }}" class="fin-input">
+        <input type="date" id="fecha-pago" name="fecha_pago" value="{{ fecha_pago_sugerida }}" class="fin-input">
+        <small class="fin-table-meta">Se propone el día que cierra el periodo, que es cuando se entrega el pago.</small>
       </div>
     </div>
     <div class="fin-modal-actions">

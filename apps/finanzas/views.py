@@ -40,7 +40,8 @@ from .nomina_academia import (
 )
 from .nomina_semanal import (
     NominaError, calcular_ingreso_generado, ingresos_generados_por_persona,
-    marcar_pago, obtener_nomina, sellar_linea, sellar_periodo, sincronizar_nomina,
+    marcar_pago, obtener_nomina, periodo_anterior, periodo_por_defecto,
+    periodo_siguiente, sellar_linea, sellar_periodo, sincronizar_nomina,
     totales_nomina,
 )
 from .pdfs import render_pdf
@@ -407,16 +408,16 @@ def honorarios_view(request):
 
 
 def _periodo_de_nomina(request, hoy):
-    """Tipo y rango del periodo elegido en la pantalla de Nómina. El semanal
-    por defecto es la semana en curso (lunes a domingo), no un rango de un
-    mes: una nómina es de un periodo de corte, no de "lo que haya"."""
+    """Tipo y rango del periodo elegido en la pantalla de Nómina. El valor
+    inicial de cada tipo lo decide `periodo_por_defecto` (la semana de
+    nómina de INTRA va de viernes a jueves); el usuario puede moverlo."""
     tipo = request.GET.get('tipo') or request.POST.get('tipo') or NominaSemanal.Tipo.SEMANAL
     if tipo not in NominaSemanal.Tipo.values:
         tipo = NominaSemanal.Tipo.SEMANAL
 
-    lunes = hoy - timedelta(days=hoy.weekday())
-    inicio = _fecha_desde_query(request, 'fecha_inicio') or lunes
-    fin = _fecha_desde_query(request, 'fecha_fin') or (lunes + timedelta(days=6))
+    inicio_defecto, fin_defecto = periodo_por_defecto(tipo, hoy)
+    inicio = _fecha_desde_query(request, 'fecha_inicio') or inicio_defecto
+    fin = _fecha_desde_query(request, 'fecha_fin') or fin_defecto
     if request.method == 'POST':
         inicio = _fecha_desde_post(request, 'fecha_inicio') or inicio
         fin = _fecha_desde_post(request, 'fecha_fin') or fin
@@ -611,6 +612,12 @@ def nomina_view(request):
         'totales': totales_nomina(nomina) if nomina else None,
         'hay_por_sellar': any(not l.sellada and l.total > 0 for l in lineas),
         'sin_recepcion': sin_recepcion,
+        'url_anterior': _url_nomina(tipo, *periodo_anterior(tipo, fecha_inicio)),
+        'url_siguiente': _url_nomina(tipo, *periodo_siguiente(tipo, fecha_fin)),
+        'url_periodo_actual': _url_nomina(tipo, *periodo_por_defecto(tipo, hoy)),
+        # El pago se entrega el día que cierra el periodo (jueves en la
+        # semanal); es el valor que se propone al sellar.
+        'fecha_pago_sugerida': (nomina.fecha_pago or fecha_fin).isoformat() if nomina else fecha_fin.isoformat(),
         'metodos': LineaNominaSemanal.MetodoPago.choices,
         'estatus_pago_choices': LineaNominaSemanal.EstatusPago.choices,
         'form_linea': form_linea,

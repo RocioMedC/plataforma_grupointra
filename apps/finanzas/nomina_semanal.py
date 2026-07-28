@@ -10,6 +10,7 @@ escribir observaciones antes de que el movimiento sea definitivo.
 """
 
 import logging
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
@@ -42,6 +43,47 @@ CONCEPTOS_EGRESO = (
 
 class NominaError(Exception):
     """Validación de negocio de nómina (no es un error técnico)."""
+
+
+# La semana de nómina de INTRA corre de VIERNES a JUEVES, no de lunes a
+# domingo (confirmado por Administración el 2026-07-28: "a partir del viernes
+# 31 se contabilizan las citas y se da el pago acumulado el jueves 6"). El
+# pago se entrega el jueves que cierra el periodo.
+DIA_INICIO_SEMANA = 4  # viernes, en la numeración de date.weekday() (lunes=0)
+
+
+def _ultimo_dia_del_mes(anio, mes):
+    return (date(anio + mes // 12, mes % 12 + 1, 1) - timedelta(days=1)).day
+
+
+def periodo_por_defecto(tipo, hoy):
+    """Rango que se muestra al entrar a la pantalla, según el tipo de nómina.
+
+    Semanal: la semana viernes→jueves que contiene a `hoy`. Quincenal: la
+    quincena en curso (1–15 o 16–fin de mes). Administrativa: el mes en
+    curso. Los tres son solo el valor inicial; el usuario puede mover las
+    fechas a mano.
+    """
+    if tipo == NominaSemanal.Tipo.SEMANAL:
+        inicio = hoy - timedelta(days=(hoy.weekday() - DIA_INICIO_SEMANA) % 7)
+        return inicio, inicio + timedelta(days=6)
+    if tipo == NominaSemanal.Tipo.QUINCENAL:
+        if hoy.day <= 15:
+            return date(hoy.year, hoy.month, 1), date(hoy.year, hoy.month, 15)
+        return date(hoy.year, hoy.month, 16), date(hoy.year, hoy.month, _ultimo_dia_del_mes(hoy.year, hoy.month))
+    return (
+        date(hoy.year, hoy.month, 1),
+        date(hoy.year, hoy.month, _ultimo_dia_del_mes(hoy.year, hoy.month)),
+    )
+
+
+def periodo_anterior(tipo, inicio):
+    """El periodo que cierra justo antes del que se está viendo."""
+    return periodo_por_defecto(tipo, inicio - timedelta(days=1))
+
+
+def periodo_siguiente(tipo, fin):
+    return periodo_por_defecto(tipo, fin + timedelta(days=1))
 
 
 def _decimal(valor):
@@ -259,7 +301,9 @@ def sellar_periodo(nomina, usuario=None, fecha_pago=None):
 
     nomina.estado = NominaSemanal.Estado.SELLADA
     nomina.sellada_en = timezone.now()
-    nomina.fecha_pago = fecha_pago or nomina.fecha_pago or timezone.now().date()
+    # El pago se entrega el día que cierra el periodo (el jueves, en la
+    # semanal), no el día en que se alcanzó a sellar en el sistema.
+    nomina.fecha_pago = fecha_pago or nomina.fecha_pago or nomina.fecha_fin
     if not nomina.usuario_genera_id and getattr(usuario, 'is_authenticated', False):
         nomina.usuario_genera = usuario
     nomina.save(update_fields=['estado', 'sellada_en', 'fecha_pago', 'usuario_genera'])
