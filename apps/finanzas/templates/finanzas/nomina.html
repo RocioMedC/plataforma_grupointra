@@ -24,7 +24,9 @@
   <form method="get" class="fin-card fin-card-pad fin-filter-form">
     <div class="fin-field">
       <label>Tipo de nómina</label>
-      <select name="tipo" onchange="this.form.fecha_inicio.value=''; this.form.fecha_fin.value=''; this.form.submit();">
+      {# Los tres tipos comparten el periodo, así que cambiar de tipo
+         conserva las fechas en vez de reencuadrarlas. #}
+      <select name="tipo" onchange="this.form.submit();">
         {% for valor, etiqueta in tipos %}
         <option value="{{ valor }}"{% if tipo == valor %} selected{% endif %}>{{ etiqueta }}</option>
         {% endfor %}
@@ -38,9 +40,7 @@
       <a class="fin-btn-mini" href="{{ url_periodo_actual }}">Periodo en curso</a>
       <a class="fin-btn-mini" href="{{ url_siguiente }}" title="Periodo siguiente">Siguiente &rarr;</a>
     </span>
-    {% if es_semanal %}
-    <span class="fin-table-meta fin-field-full">La semana de nómina va de <b>viernes a jueves</b>, y el pago se entrega el jueves que cierra el periodo.</span>
-    {% endif %}
+    <span class="fin-table-meta fin-field-full">La semana de nómina va de <b>viernes a jueves</b> —igual para los tres tipos— y el pago se entrega el jueves que cierra el periodo.</span>
   </form>
 
   {% if aviso_sync %}<div class="fin-alert fin-alert-info">{{ aviso_sync }}</div>{% endif %}

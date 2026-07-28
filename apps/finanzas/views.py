@@ -408,14 +408,14 @@ def honorarios_view(request):
 
 
 def _periodo_de_nomina(request, hoy):
-    """Tipo y rango del periodo elegido en la pantalla de Nómina. El valor
-    inicial de cada tipo lo decide `periodo_por_defecto` (la semana de
-    nómina de INTRA va de viernes a jueves); el usuario puede moverlo."""
+    """Tipo y rango del periodo elegido en la pantalla de Nómina. El rango
+    inicial es la semana de nómina de INTRA (viernes→jueves), igual para los
+    tres tipos; el usuario puede moverlo."""
     tipo = request.GET.get('tipo') or request.POST.get('tipo') or NominaSemanal.Tipo.SEMANAL
     if tipo not in NominaSemanal.Tipo.values:
         tipo = NominaSemanal.Tipo.SEMANAL
 
-    inicio_defecto, fin_defecto = periodo_por_defecto(tipo, hoy)
+    inicio_defecto, fin_defecto = periodo_por_defecto(hoy)
     inicio = _fecha_desde_query(request, 'fecha_inicio') or inicio_defecto
     fin = _fecha_desde_query(request, 'fecha_fin') or fin_defecto
     if request.method == 'POST':
@@ -612,9 +612,9 @@ def nomina_view(request):
         'totales': totales_nomina(nomina) if nomina else None,
         'hay_por_sellar': any(not l.sellada and l.total > 0 for l in lineas),
         'sin_recepcion': sin_recepcion,
-        'url_anterior': _url_nomina(tipo, *periodo_anterior(tipo, fecha_inicio)),
-        'url_siguiente': _url_nomina(tipo, *periodo_siguiente(tipo, fecha_fin)),
-        'url_periodo_actual': _url_nomina(tipo, *periodo_por_defecto(tipo, hoy)),
+        'url_anterior': _url_nomina(tipo, *periodo_anterior(fecha_inicio)),
+        'url_siguiente': _url_nomina(tipo, *periodo_siguiente(fecha_fin)),
+        'url_periodo_actual': _url_nomina(tipo, *periodo_por_defecto(hoy)),
         # El pago se entrega el día que cierra el periodo (jueves en la
         # semanal); es el valor que se propone al sellar.
         'fecha_pago_sugerida': (nomina.fecha_pago or fecha_fin).isoformat() if nomina else fecha_fin.isoformat(),

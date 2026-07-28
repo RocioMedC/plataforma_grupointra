@@ -49,41 +49,31 @@ class NominaError(Exception):
 # domingo (confirmado por Administración el 2026-07-28: "a partir del viernes
 # 31 se contabilizan las citas y se da el pago acumulado el jueves 6"). El
 # pago se entrega el jueves que cierra el periodo.
+#
+# Los TRES tipos de nómina —semanal, quincenal y administrativa— usan este
+# mismo corte de 7 días (confirmado el 2026-07-28: "todas siguen el mismo
+# calendario"). Lo que distingue a una quincenal de una semanal es el
+# concepto de pago de cada persona, no las fechas del documento; así aparece
+# también en el formato de referencia de la sección 4 del documento, donde
+# "Prenómina quincenal" es un concepto dentro de la nómina y no un periodo
+# aparte. Por eso `periodo_por_defecto` no recibe el tipo: no varía.
 DIA_INICIO_SEMANA = 4  # viernes, en la numeración de date.weekday() (lunes=0)
 
 
-def _ultimo_dia_del_mes(anio, mes):
-    return (date(anio + mes // 12, mes % 12 + 1, 1) - timedelta(days=1)).day
+def periodo_por_defecto(hoy):
+    """Semana de nómina (viernes→jueves) que contiene a `hoy`. Es solo el
+    valor inicial de la pantalla; el usuario puede mover las fechas."""
+    inicio = hoy - timedelta(days=(hoy.weekday() - DIA_INICIO_SEMANA) % 7)
+    return inicio, inicio + timedelta(days=6)
 
 
-def periodo_por_defecto(tipo, hoy):
-    """Rango que se muestra al entrar a la pantalla, según el tipo de nómina.
-
-    Semanal: la semana viernes→jueves que contiene a `hoy`. Quincenal: la
-    quincena en curso (1–15 o 16–fin de mes). Administrativa: el mes en
-    curso. Los tres son solo el valor inicial; el usuario puede mover las
-    fechas a mano.
-    """
-    if tipo == NominaSemanal.Tipo.SEMANAL:
-        inicio = hoy - timedelta(days=(hoy.weekday() - DIA_INICIO_SEMANA) % 7)
-        return inicio, inicio + timedelta(days=6)
-    if tipo == NominaSemanal.Tipo.QUINCENAL:
-        if hoy.day <= 15:
-            return date(hoy.year, hoy.month, 1), date(hoy.year, hoy.month, 15)
-        return date(hoy.year, hoy.month, 16), date(hoy.year, hoy.month, _ultimo_dia_del_mes(hoy.year, hoy.month))
-    return (
-        date(hoy.year, hoy.month, 1),
-        date(hoy.year, hoy.month, _ultimo_dia_del_mes(hoy.year, hoy.month)),
-    )
-
-
-def periodo_anterior(tipo, inicio):
+def periodo_anterior(inicio):
     """El periodo que cierra justo antes del que se está viendo."""
-    return periodo_por_defecto(tipo, inicio - timedelta(days=1))
+    return periodo_por_defecto(inicio - timedelta(days=1))
 
 
-def periodo_siguiente(tipo, fin):
-    return periodo_por_defecto(tipo, fin + timedelta(days=1))
+def periodo_siguiente(fin):
+    return periodo_por_defecto(fin + timedelta(days=1))
 
 
 def _decimal(valor):
