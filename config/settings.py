@@ -163,7 +163,13 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# 'UTC' (no 'America/Mexico_City') hacía que la Bitácora comparara y
+# mostrara fechas en huso UTC: un movimiento de la tarde/noche en México
+# (UTC-6) caía en el día SIGUIENTE al filtrar o mostrar `RegistroAuditoria.
+# fecha` (DateTimeField), aunque para quien lo capturó fuera claramente
+# "hoy". Con USE_TZ=True, Django sigue guardando en UTC internamente; esto
+# solo cambia el huso usado para mostrar y para los filtros __date.
+TIME_ZONE = 'America/Mexico_City'
 
 USE_I18N = True
 
@@ -239,6 +245,13 @@ LOGGING = {
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
+
+# Reemplaza la página "403 Forbidden" en blanco que Django muestra cuando un
+# formulario se rechaza por CSRF (el caso reportado: usar "atrás" del
+# navegador para volver a una pantalla vieja y reenviarla) por una página que
+# explica qué pasó y ofrece un botón para reintentar. Ver
+# apps/core/views.py::csrf_failure_view.
+CSRF_FAILURE_VIEW = 'apps.core.views.csrf_failure_view'
 
 # Archivos subidos por el usuario (ej. XML/PDF de CFDI de donativos).
 MEDIA_URL = 'media/'

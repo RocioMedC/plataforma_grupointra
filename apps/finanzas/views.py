@@ -540,6 +540,13 @@ def nomina_view(request):
             )
             return redirect(destino)
         elif accion == 'sellar_linea':
+            # El botón "Sellar" de una fila envía el mismo <form> que trae los
+            # inputs de método/observaciones/montos de TODAS las filas: si no
+            # se guardan aquí primero, sellar_linea() lee de la base de datos
+            # los valores de ANTES de la edición y lo que se ve en pantalla
+            # (método de pago recién cambiado, observaciones recién escritas)
+            # se pierde en silencio.
+            _guardar_borrador_nomina(request, nomina)
             linea = get_object_or_404(LineaNominaSemanal, pk=request.POST.get('id'), nomina=nomina)
             try:
                 creados = sellar_linea(linea, request.user)
@@ -739,6 +746,9 @@ def reporte_recepcion_view(request):
     form_upload = ReporteRecepcionUploadForm()
     fecha_inicio = _fecha_desde_query(request, 'fecha_inicio') or (hoy - timedelta(weeks=4))
     fecha_fin = _fecha_desde_query(request, 'fecha_fin') or hoy
+    if fecha_inicio > fecha_fin:
+        messages.error(request, 'El rango de fechas no es válido: "Desde" es posterior a "Hasta".')
+        fecha_inicio, fecha_fin = hoy - timedelta(weeks=4), hoy
     terapeuta = request.GET.get('terapeuta') or ''
 
     # El rango y el terapeuta filtran de verdad lo que se muestra. Antes solo
@@ -751,7 +761,13 @@ def reporte_recepcion_view(request):
 
     asistidas = citas.filter(estatus=CitaRecepcion.Estatus.SI_ASISTIO)
     total_citas = citas.count()
-    total_asistidas = asistidas.count()
+    # La tarjeta "Citas con asistencia confirmada" es más amplia que el
+    # ranking/ingreso (que solo cuentan "Sí asistió", ver _ingresos_efectivos
+    # y el banner de esta pantalla): también cuenta las citas en "Confirmada"
+    # a pedido de Administración, aunque todavía no se hayan atendido.
+    total_asistidas = citas.filter(
+        estatus__in=[CitaRecepcion.Estatus.SI_ASISTIO, CitaRecepcion.Estatus.CONFIRMADA]
+    ).count()
     # Pacientes distintos atendidos (criterio 6 del documento: los datos de
     # recepción deben alimentar también el conteo de pacientes).
     total_pacientes = asistidas.values('paciente').distinct().count()
@@ -1037,6 +1053,9 @@ def bitacora_view(request):
     desde = _fecha_desde_query(request, 'desde')
     hasta = _fecha_desde_query(request, 'hasta')
     tipo = request.GET.get('tipo') or ''
+    if desde and hasta and desde > hasta:
+        messages.error(request, 'El rango de fechas no es válido: "Desde" es posterior a "Hasta".')
+        desde = hasta = None
     if desde:
         movimientos = movimientos.filter(fecha__date__gte=desde)
     if hasta:

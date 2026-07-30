@@ -32,6 +32,10 @@
     word-wrap: break-word; overflow-wrap: break-word;
   }
   table.fin-pdf-tabla td.num { text-align: right; }
+  /* Sin esto, xhtml2pdf puede partir una fila justo en el corte de página y
+     el fondo/borde de la fila siguiente se pinta encima de la anterior —
+     se ve como secciones "encimadas" al pasar de página en el visor. */
+  table.fin-pdf-tabla tr { page-break-inside: avoid; }
   tr.fila-total td { background-color: #F3F5FA; font-weight: bold; border-top: 2px solid #1B2C4F; }
   .fin-pdf-totales { width: 100%; margin-top: 14px; }
   .fin-pdf-totales table { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -54,7 +58,13 @@
         <td style="width: 60px;"><img src="{% static 'core/images/intra-logo.png' %}" alt="INTRA"></td>
         <td>
           <div class="titulo">Nómina {{ nomina.get_tipo_display|lower }} INTRA</div>
-          <div class="folio">{{ nomina.folio }}</div>
+          {% comment %}
+            El folio ya trae una fecha adentro (INTRA-2026-07-03-001), y
+            mostrarlo pelón justo arriba de "Periodo: ... al ..." se leía
+            como una segunda fecha del documento. La etiqueta "Folio:" lo
+            deja inequívoco.
+          {% endcomment %}
+          <div class="folio">Folio: {{ nomina.folio }}</div>
           <div class="subtitulo">
             Periodo: {{ nomina.fecha_inicio|date:'d/m/Y' }} al {{ nomina.fecha_fin|date:'d/m/Y' }}<br>
             Fecha de pago: {% if nomina.fecha_pago %}{{ nomina.fecha_pago|date:'d/m/Y' }}{% else %}por definir{% endif %}
@@ -136,6 +146,34 @@
           <span class="valor">{{ totales.vales_pendientes|dinero }}</span>
         </td>
       </tr>
+    </table>
+  </div>
+
+  <div class="fin-pdf-vales">
+    {% comment %}
+      Los totales de "Pendiente transferencia" / "Pendiente efectivo" de
+      arriba no traían con qué persona/concepto se arma la suma; este
+      desglose es lo que permite verificar el cambio contra el corte.
+    {% endcomment %}
+    <div class="fin-pdf-vales-titulo">Detalle por método de pago (pendiente por dispersar)</div>
+    <table class="fin-pdf-tabla">
+      <thead>
+        <tr><th>Persona</th><th>Concepto</th><th>Método</th><th class="num">Total</th></tr>
+      </thead>
+      <tbody>
+        {% for l in lineas %}
+          {% if l.pendiente and l.metodo_pago != 'pendiente' %}
+          <tr>
+            <td>{{ l.persona }}</td>
+            <td>{{ l.concepto }}</td>
+            <td>{{ l.get_metodo_pago_display }}</td>
+            <td class="num">{{ l.pendiente|dinero }}</td>
+          </tr>
+          {% endif %}
+        {% empty %}
+        <tr><td colspan="4">Sin movimientos pendientes por transferencia o efectivo en este periodo.</td></tr>
+        {% endfor %}
+      </tbody>
     </table>
   </div>
 

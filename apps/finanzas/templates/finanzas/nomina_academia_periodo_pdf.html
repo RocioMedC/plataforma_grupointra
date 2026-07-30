@@ -25,6 +25,10 @@
     word-wrap: break-word; overflow-wrap: break-word;
   }
   table.fin-pdf-tabla td.num { text-align: right; }
+  /* Evita que xhtml2pdf corte una fila justo en el salto de página: sin
+     esto el fondo de la fila del docente siguiente se pinta sobre la
+     anterior y los apartados se ven encimados. */
+  table.fin-pdf-tabla tr { page-break-inside: avoid; }
   tr.fila-docente td { background-color: #F7F9FC; font-weight: bold; }
   tr.fila-total td { background-color: #F3F5FA; font-weight: bold; border-top: 2px solid #1B2C4F; font-size: 9.5pt; }
   .fin-pdf-totales { width: 100%; margin-top: 14px; }

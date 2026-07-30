@@ -224,9 +224,18 @@
       </div>
       <div class="fin-field"><label for="{{ form_linea.tipo_persona.id_for_label }}">Tipo</label>{{ form_linea.tipo_persona }}</div>
       <div class="fin-field"><label for="{{ form_linea.concepto.id_for_label }}">Concepto</label>{{ form_linea.concepto }}</div>
-      <div class="fin-field"><label for="{{ form_linea.pago_base.id_for_label }}">Pago base</label>{{ form_linea.pago_base }}</div>
-      <div class="fin-field"><label for="{{ form_linea.vale_gasolina.id_for_label }}">Vale de gasolina / bono</label>{{ form_linea.vale_gasolina }}</div>
-      <div class="fin-field"><label for="{{ form_linea.extras.id_for_label }}">Bono extra / otros</label>{{ form_linea.extras }}</div>
+      <div class="fin-field">
+        <label for="{{ form_linea.pago_base.id_for_label }}">Pago base</label>{{ form_linea.pago_base }}
+        {% if form_linea.pago_base.errors %}<span class="fin-field-error">{{ form_linea.pago_base.errors.0 }}</span>{% endif %}
+      </div>
+      <div class="fin-field">
+        <label for="{{ form_linea.vale_gasolina.id_for_label }}">Vale de gasolina / bono</label>{{ form_linea.vale_gasolina }}
+        {% if form_linea.vale_gasolina.errors %}<span class="fin-field-error">{{ form_linea.vale_gasolina.errors.0 }}</span>{% endif %}
+      </div>
+      <div class="fin-field">
+        <label for="{{ form_linea.extras.id_for_label }}">Bono extra / otros</label>{{ form_linea.extras }}
+        {% if form_linea.extras.errors %}<span class="fin-field-error">{{ form_linea.extras.errors.0 }}</span>{% endif %}
+      </div>
       <div class="fin-field"><label for="{{ form_linea.metodo_pago.id_for_label }}">Método de pago</label>{{ form_linea.metodo_pago }}</div>
       <div class="fin-field fin-field-full"><label for="{{ form_linea.observaciones.id_for_label }}">Observaciones</label>{{ form_linea.observaciones }}</div>
     </div>

@@ -380,19 +380,30 @@ class LineaNominaManualForm(forms.ModelForm):
     def __init__(self, *args, nomina=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.nomina = nomina
+        # Solo se exige que la SUMA de los tres montos sea mayor a cero (ver
+        # clean() de abajo), no que cada campo esté lleno. Sin este ajuste,
+        # ModelForm los marcaba required=True (el modelo no tiene blank=True
+        # en estos DecimalField) y dejar vale_gasolina/extras en blanco — el
+        # caso normal — tumbaba la captura con un error que ni siquiera se
+        # mostraba en el modal (solo se pintan los errores de `persona`).
+        for campo in ('pago_base', 'vale_gasolina', 'extras'):
+            self.fields[campo].required = False
 
     def clean(self):
         datos = super().clean()
-        total = (
-            (datos.get('pago_base') or Decimal('0'))
-            + (datos.get('vale_gasolina') or Decimal('0'))
-            + (datos.get('extras') or Decimal('0'))
-        )
+        for campo in ('pago_base', 'vale_gasolina', 'extras'):
+            if datos.get(campo) is None:
+                datos[campo] = Decimal('0')
+        total = datos['pago_base'] + datos['vale_gasolina'] + datos['extras']
         if total <= Decimal('0'):
             raise forms.ValidationError('Captura al menos un monto mayor a cero (pago base, vale o extra).')
-        persona = datos.get('persona')
+        persona = (datos.get('persona') or '').strip()
+        datos['persona'] = persona
+        # persona__iexact (no persona=): dos capturas de la misma persona con
+        # mayúsculas o espacios distintos ("Juan Pérez" / "juan pérez ") deben
+        # bloquearse igual, no solo la coincidencia exacta de cadena.
         if self.nomina and persona and existe_duplicado(
-            LineaNominaSemanal, nomina=self.nomina, persona=persona,
+            LineaNominaSemanal, nomina=self.nomina, persona__iexact=persona,
         ):
             raise forms.ValidationError(
                 f'{persona} ya está capturado en esta nómina. Edita su línea, o registra la '

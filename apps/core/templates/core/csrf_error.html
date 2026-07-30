@@ -1,0 +1,44 @@
+{% load static %}<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grupo Intra | Formulario expirado</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: #F5F7FB; color: #1B2C4F; font-family: 'Work Sans', system-ui, sans-serif;
+    padding: 24px;
+  }
+  .card {
+    max-width: 26rem; width: 100%; background: #fff; border: 1px solid #E2E8F2; border-radius: 16px;
+    padding: 2rem 1.8rem; box-shadow: 0 10px 30px -22px rgba(27, 44, 79, .55); text-align: center;
+  }
+  img { height: 40px; margin-bottom: 1rem; }
+  h1 { font-family: 'Source Serif 4', Georgia, serif; font-size: 1.4rem; margin: 0 0 .6rem; }
+  p { color: #56617A; font-size: .92rem; line-height: 1.55; margin: 0 0 1.4rem; }
+  .btn {
+    display: inline-block; background: #1F8A5B; color: #fff; text-decoration: none;
+    font-weight: 600; font-size: .92rem; padding: .65rem 1.4rem; border-radius: 9px;
+  }
+  .nota { margin-top: 1.1rem; font-size: .8rem; color: #7C879B; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <img src="{% static 'core/images/intra-logo.png' %}" alt="Grupo Intra">
+    <h1>Esta pantalla ya no está vigente</h1>
+    <p>
+      Es probable que hayas vuelto a una página que estaba abierta desde hace rato (por ejemplo con el
+      botón "atrás" del navegador) e intentado enviarla de nuevo. Por seguridad, esa página ya no se
+      puede usar para enviar datos. Nada se guardó — vuelve a intentarlo desde una pantalla fresca.
+    </p>
+    <a href="{% url 'dashboard' %}" class="btn">Volver al panel</a>
+    <div class="nota">Si esto sigue pasando, cierra sesión y vuelve a entrar.</div>
+  </div>
+</body>
+</html>
