@@ -209,18 +209,17 @@ table.fin-table tfoot td { padding: 14px 16px; font-weight: 700; }
 /* ===== Edición inline del estatus de una fila (Ingresos, Egresos, Donativos)
    sin salir de la tabla ni ir a /admin/.
 
-   El criterio de diseño: en reposo la celda muestra UNA cosa — la píldora de
-   estatus — y nada más. El campo de cobrado y el botón Guardar solo aparecen
-   cuando hacen falta (Parcial el primero, un cambio sin guardar el segundo).
-   En una tabla de 200 filas eso es la diferencia entre 600 controles en
-   pantalla y 200 etiquetas legibles.
+   El criterio de diseño: la píldora de estatus manda, y lo que no significa
+   nada en esa fila no se muestra. El campo de cobrado solo aparece cuando el
+   estatus es Parcial, que es el único caso donde aplica; Guardar se queda
+   siempre visible pero discreto (ver abajo por qué).
 
-   Ambos se ocultan con `visibility`, no con `display`: así siguen ocupando su
-   lugar y la columna nunca cambia de ancho ni brinca cuando aparecen.
+   Se oculta con `visibility`, no con `display`: así el campo sigue ocupando
+   su lugar y la columna nunca cambia de ancho ni brinca cuando aparece.
 
-   Las dos reglas de ocultamiento cuelgan de `body.js-estatus`, que agrega el
-   script de _base.html. Sin JS no se oculta nada y la tabla funciona como
-   siempre — que es justo lo que debe pasar cuando el adorno no carga. */
+   La regla de ocultamiento cuelga de `body.js-estatus`, que agrega el script
+   de _base.html. Sin JS no se oculta nada y la tabla funciona como siempre —
+   que es justo lo que debe pasar cuando el adorno no carga. */
 .fin-estatus-form {
   display: flex; align-items: center; gap: 6px; flex-wrap: nowrap;
 }
@@ -270,19 +269,26 @@ table.fin-table tfoot td { padding: 14px 16px; font-weight: 700; }
 body.js-estatus .fin-estatus-form input.fin-estatus-monto { visibility: hidden; }
 body.js-estatus .fin-estatus-form.is-parcial input.fin-estatus-monto { visibility: visible; }
 
-/* Guardar: aparece cuando hay algo que guardar, y ahí sí se ve como la acción
-   de la fila. Dice "Guardar" y no un ícono suelto: el nombre de una acción es
-   la señalización de la pantalla. */
+/* Guardar: siempre visible. Se probó esconderlo hasta que hubiera un cambio
+   sin guardar y la fila se leía como de solo lectura — un botón que no está
+   a la vista no existe. En reposo va discreto para no competir con la
+   píldora; en cuanto hay algo sin guardar se vuelve sólido y se lleva la
+   mirada a la fila que falta confirmar. Dice "Guardar" y no un ícono suelto:
+   el nombre de una acción es la señalización de la pantalla. */
 .fin-estatus-save {
   flex-shrink: 0;
   font-family: inherit; font-size: 11px; font-weight: 700;
   padding: 5px 12px; border-radius: 8px;
-  border: 1px solid #2D5F8B; background: #2D5F8B; color: #fff; cursor: pointer;
-  transition: background-color .15s ease;
+  border: 1px solid #D7DDE8; background: #fff; color: #7C879B; cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
-.fin-estatus-save:hover { background: #24507A; border-color: #24507A; }
-body.js-estatus .fin-estatus-form .fin-estatus-save { visibility: hidden; }
-body.js-estatus .fin-estatus-form.is-dirty .fin-estatus-save { visibility: visible; }
+.fin-estatus-save:hover { border-color: #2D5F8B; color: #2D5F8B; background: #F4F8FD; }
+.fin-estatus-form.is-dirty .fin-estatus-save {
+  border-color: #2D5F8B; background: #2D5F8B; color: #fff;
+}
+.fin-estatus-form.is-dirty .fin-estatus-save:hover {
+  border-color: #24507A; background: #24507A; color: #fff;
+}
 
 .fin-estatus-form select:focus-visible,
 .fin-estatus-form input:focus-visible,
