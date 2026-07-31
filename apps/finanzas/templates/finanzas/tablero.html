@@ -98,18 +98,24 @@
     <div class="fin-stack" style="gap:20px;">
       <div class="fin-goal-card">
         <div class="fin-goal-head">
-          <span>Meta anual de donativos</span>
-          <span>{{ meta_donativos.pct }}%</span>
+          <span>Donativos {{ donativos_anio.anio }}</span>
+          <span>{{ donativos_anio.cantidad }} donativo{{ donativos_anio.cantidad|pluralize }}</span>
         </div>
-        <div class="fin-goal-value">{{ meta_donativos.acumulado }} <small>/ {{ meta_donativos.meta }}</small></div>
-        <div class="fin-goal-bar"><div class="fin-goal-bar-fill" style="width: {{ meta_donativos.pct }}%;"></div></div>
-        <div class="fin-goal-note">Necesario para conservar la autorización de Donataria.</div>
+        <div class="fin-goal-value">{{ donativos_anio.acumulado }}</div>
+        <div class="fin-goal-note">Acumulado del año. No cuenta los CFDI cancelados.</div>
       </div>
 
       <div class="fin-card fin-card-pad">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
           <span class="fin-card-title" style="font-size:16px;">Pagos pendientes</span>
-          <span class="fin-badge fin-badge-pendiente">{{ pendientes|length }} egreso{{ pendientes|length|pluralize }}</span>
+          <span class="fin-badge fin-badge-pendiente">{{ pendientes_resumen.total_registros }} egreso{{ pendientes_resumen.total_registros|pluralize }} · {{ pendientes_resumen.monto }}</span>
+        </div>
+        <div class="fin-card-subtitle" style="margin-bottom:12px;">
+          {% if pendientes_resumen.total_registros > pendientes_resumen.mostrados %}
+          Los {{ pendientes_resumen.mostrados }} de mayor monto. Incluye pendientes de meses anteriores, no solo del mes en curso.
+          {% else %}
+          Incluye pendientes de meses anteriores, no solo del mes en curso.
+          {% endif %}
         </div>
         {% for p in pendientes %}
         <div class="fin-list-row" style="padding:9px 0;">

@@ -247,25 +247,42 @@ def tablero_view(request):
     recientes.sort(key=lambda r: r['fecha'], reverse=True)
     recientes = recientes[:5]
 
-    total_donativos_anio = _donativos_efectivos(Donativo.objects.filter(fecha__year=hoy.year))
-    pct_meta = min(100, round(float(total_donativos_anio / META_ANUAL_DONATIVOS * 100)))
-    meta_donativos = {
-        'acumulado': _dinero(total_donativos_anio),
-        'meta': _dinero(META_ANUAL_DONATIVOS),
-        'pct': pct_meta,
+    # Acumulado del año, sin meta: cuánto se ha recibido y en cuántos
+    # donativos. Hubo una barra contra una meta anual de $2,000,000, pero ese
+    # número estaba escrito a mano en el código y nadie pudo confirmar de
+    # dónde salía, así que se quitó (decisión del usuario, 2026-07-31).
+    donativos_anio_qs = Donativo.objects.filter(fecha__year=hoy.year).exclude(
+        estatus_cfdi=Donativo.EstatusCFDI.CANCELADO
+    )
+    donativos_anio = {
+        'anio': hoy.year,
+        'acumulado': _dinero(_suma(donativos_anio_qs)),
+        'cantidad': donativos_anio_qs.count(),
     }
 
     # Los pagos a terapeutas ya no se calculan aquí (ver Nómina): lo que
     # queda por pagar son Egresos pendientes, vengan del sellado de una
     # nómina o de una captura manual.
+    #
+    # A propósito sin filtrar por mes, a diferencia de los KPIs de arriba: un
+    # egreso pendiente de hace tres meses sigue pendiente y es justo el que no
+    # se debe perder de vista. Por eso el resumen va aparte del recorte a 6 —
+    # el badge tiene que decir cuántos hay en total, no cuántos se alcanzan a
+    # pintar.
+    pendientes_qs = Egreso.objects.filter(estatus=Egreso.Estatus.PENDIENTE)
     pendientes = [
         {
             'titulo': e.persona or e.concepto,
             'meta': e.get_categoria_display(),
             'total': _dinero(e.monto),
         }
-        for e in Egreso.objects.filter(estatus=Egreso.Estatus.PENDIENTE).order_by('-monto')[:6]
+        for e in pendientes_qs.order_by('-monto')[:6]
     ]
+    pendientes_resumen = {
+        'mostrados': len(pendientes),
+        'total_registros': pendientes_qs.count(),
+        'monto': _dinero(_suma(pendientes_qs)),
+    }
 
     contexto = {
         'vista_actual': 'tablero',
@@ -275,8 +292,9 @@ def tablero_view(request):
         'donut_gradient': donut_gradient,
         'donut_total': _dinero(total_ingresos),
         'recientes': recientes,
-        'meta_donativos': meta_donativos,
+        'donativos_anio': donativos_anio,
         'pendientes': pendientes,
+        'pendientes_resumen': pendientes_resumen,
         'form_ingreso': IngresoForm(initial={'fecha': hoy}),
         'form_egreso': EgresoForm(initial={'fecha': hoy}),
         'form_donativo': DonativoForm(initial={'fecha': hoy}),
