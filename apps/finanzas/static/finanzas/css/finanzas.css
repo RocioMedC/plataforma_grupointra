@@ -213,6 +213,25 @@ table.fin-table tfoot td { padding: 14px 16px; font-weight: 700; }
   font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 20px;
   border: 1px solid #D7DDE8; background: #fff; color: #1B2C4F; cursor: pointer;
 }
+/* Código de color del estatus, con la misma paleta que .fin-badge-* para que
+   verde/azul/ámbar/rojo signifiquen lo mismo en todo el módulo. El color
+   refleja el valor guardado; el `onchange` del template lo actualiza al vuelo
+   para que no se vea en desacuerdo con lo que acabas de elegir. El texto de la
+   opción se queda ("Pagado", "Parcial"...): el color acompaña, no sustituye. */
+.fin-estatus-form select.fin-estatus-pagado,
+.fin-estatus-form select.fin-estatus-vigente {
+  background: #E6F4EC; border-color: #BADCC8; color: #1F8A5B;
+}
+.fin-estatus-form select.fin-estatus-parcial,
+.fin-estatus-form select.fin-estatus-tramite {
+  background: #EAF1FB; border-color: #C3D8F0; color: #2D5F8B;
+}
+.fin-estatus-form select.fin-estatus-pendiente {
+  background: #FBEEDF; border-color: #EFD5B0; color: #9A6B12;
+}
+.fin-estatus-form select.fin-estatus-cancelado {
+  background: #FBE9E9; border-color: #F0C9C7; color: #B4413B;
+}
 .fin-estatus-form input.fin-estatus-monto {
   width: 78px; font-size: 11px; padding: 3px 6px; border-radius: 6px;
   border: 1px solid #D7DDE8; color: #1B2C4F;

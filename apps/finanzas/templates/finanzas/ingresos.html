@@ -50,7 +50,8 @@
               {% csrf_token %}
               <input type="hidden" name="accion" value="estatus">
               <input type="hidden" name="id" value="{{ row.id }}">
-              <select name="estatus" class="fin-estatus-select">
+              <select name="estatus" class="fin-estatus-select fin-estatus-{{ row.estatus }}"
+                      onchange="this.className='fin-estatus-select fin-estatus-'+this.value;">
                 {% for valor, etiqueta in estatus_choices %}
                 <option value="{{ valor }}" {% if valor == row.estatus %}selected{% endif %}>{{ etiqueta }}</option>
                 {% endfor %}
