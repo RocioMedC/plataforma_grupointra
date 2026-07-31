@@ -107,5 +107,37 @@
   </div>
 
 </div>
+
+{% comment %}
+  Mejora progresiva del control de estatus de las tablas. Solo hace tres
+  cosas: recolorear la píldora al elegir otra opción, mostrar el campo de
+  cobrado cuando el estatus es Parcial, y sacar el botón Guardar cuando hay
+  algo sin guardar. La marca `js-estatus` en el <body> es la que activa el
+  ocultamiento en el CSS, así que si este script no corre, todo queda visible
+  y la tabla se sigue usando igual.
+{% endcomment %}
+<script>
+  (function () {
+    var formularios = document.querySelectorAll('.fin-estatus-form');
+    if (!formularios.length) { return; }
+    document.body.classList.add('js-estatus');
+
+    Array.prototype.forEach.call(formularios, function (formulario) {
+      var selector = formulario.querySelector('.fin-estatus-select');
+
+      formulario.addEventListener('change', function () {
+        if (selector) {
+          selector.className = 'fin-estatus-select fin-estatus-' + selector.value;
+          formulario.classList.toggle('is-parcial', selector.value === 'parcial');
+        }
+        formulario.classList.add('is-dirty');
+      });
+
+      formulario.addEventListener('input', function () {
+        formulario.classList.add('is-dirty');
+      });
+    });
+  })();
+</script>
 </body>
 </html>

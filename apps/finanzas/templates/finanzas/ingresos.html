@@ -71,12 +71,11 @@
             {% else %}—{% endif %}
           </td>
           <td>
-            <form method="post" class="fin-estatus-form">
+            <form method="post" class="fin-estatus-form{% if row.estatus == 'parcial' %} is-parcial{% endif %}">
               {% csrf_token %}
               <input type="hidden" name="accion" value="estatus">
               <input type="hidden" name="id" value="{{ row.id }}">
-              <select name="estatus" class="fin-estatus-select fin-estatus-{{ row.estatus }}"
-                      onchange="this.className='fin-estatus-select fin-estatus-'+this.value;">
+              <select name="estatus" class="fin-estatus-select fin-estatus-{{ row.estatus }}" aria-label="Estatus del ingreso">
                 {% for valor, etiqueta in estatus_choices %}
                 <option value="{{ valor }}" {% if valor == row.estatus %}selected{% endif %}>{{ etiqueta }}</option>
                 {% endfor %}

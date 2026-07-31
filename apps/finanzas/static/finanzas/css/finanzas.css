@@ -206,41 +206,94 @@ table.fin-table tfoot td { padding: 14px 16px; font-weight: 700; }
 .fin-cat-B { background: #EAF1FB; color: #2D5F8B; }
 .fin-cat-C { background: #F3F5F9; color: #5A6472; }
 
-/* Edición inline del estatus de una fila (Ingresos, Egresos, Donativos)
-   sin salir de la tabla ni ir a /admin/. */
-.fin-estatus-form { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
-.fin-estatus-form select.fin-estatus-select {
-  font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 20px;
-  border: 1px solid #D7DDE8; background: #fff; color: #1B2C4F; cursor: pointer;
+/* ===== Edición inline del estatus de una fila (Ingresos, Egresos, Donativos)
+   sin salir de la tabla ni ir a /admin/.
+
+   El criterio de diseño: en reposo la celda muestra UNA cosa — la píldora de
+   estatus — y nada más. El campo de cobrado y el botón Guardar solo aparecen
+   cuando hacen falta (Parcial el primero, un cambio sin guardar el segundo).
+   En una tabla de 200 filas eso es la diferencia entre 600 controles en
+   pantalla y 200 etiquetas legibles.
+
+   Ambos se ocultan con `visibility`, no con `display`: así siguen ocupando su
+   lugar y la columna nunca cambia de ancho ni brinca cuando aparecen.
+
+   Las dos reglas de ocultamiento cuelgan de `body.js-estatus`, que agrega el
+   script de _base.html. Sin JS no se oculta nada y la tabla funciona como
+   siempre — que es justo lo que debe pasar cuando el adorno no carga. */
+.fin-estatus-form {
+  display: flex; align-items: center; gap: 6px; flex-wrap: nowrap;
 }
+
+/* La píldora: mismo ancho en todas las filas para que la columna lea como una
+   sola línea vertical y no como un borde dentado. */
+.fin-estatus-form select.fin-estatus-select {
+  appearance: none; -webkit-appearance: none;
+  width: 108px; flex-shrink: 0;
+  font-family: inherit; font-size: 11px; font-weight: 700; letter-spacing: .02em;
+  padding: 5px 26px 5px 12px; border-radius: 20px;
+  border: 1px solid #D7DDE8; background-color: #fff; color: #1B2C4F; cursor: pointer;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%238A94A6' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center; background-size: 9px;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.fin-estatus-form select.fin-estatus-select:hover { border-color: #B9C4D6; }
+
 /* Código de color del estatus, con la misma paleta que .fin-badge-* para que
-   verde/azul/ámbar/rojo signifiquen lo mismo en todo el módulo. El color
-   refleja el valor guardado; el `onchange` del template lo actualiza al vuelo
-   para que no se vea en desacuerdo con lo que acabas de elegir. El texto de la
-   opción se queda ("Pagado", "Parcial"...): el color acompaña, no sustituye. */
+   verde/azul/ámbar/rojo signifiquen lo mismo en todo el módulo. Solo
+   `background-color`: usar `background` borraría la flecha de arriba. El texto
+   de la opción se queda ("Pagado", "Parcial"...): el color acompaña, no
+   sustituye, para que la tabla siga siendo legible sin distinguir colores. */
 .fin-estatus-form select.fin-estatus-pagado,
 .fin-estatus-form select.fin-estatus-vigente {
-  background: #E6F4EC; border-color: #BADCC8; color: #1F8A5B;
+  background-color: #E6F4EC; border-color: #BADCC8; color: #1F8A5B;
 }
 .fin-estatus-form select.fin-estatus-parcial,
 .fin-estatus-form select.fin-estatus-tramite {
-  background: #EAF1FB; border-color: #C3D8F0; color: #2D5F8B;
+  background-color: #EAF1FB; border-color: #C3D8F0; color: #2D5F8B;
 }
 .fin-estatus-form select.fin-estatus-pendiente {
-  background: #FBEEDF; border-color: #EFD5B0; color: #9A6B12;
+  background-color: #FBEEDF; border-color: #EFD5B0; color: #9A6B12;
 }
 .fin-estatus-form select.fin-estatus-cancelado {
-  background: #FBE9E9; border-color: #F0C9C7; color: #B4413B;
+  background-color: #FBE9E9; border-color: #F0C9C7; color: #B4413B;
 }
+
+/* Cuánto se ha cobrado: solo significa algo cuando el estatus es Parcial. */
 .fin-estatus-form input.fin-estatus-monto {
-  width: 78px; font-size: 11px; padding: 3px 6px; border-radius: 6px;
-  border: 1px solid #D7DDE8; color: #1B2C4F;
+  width: 86px; flex-shrink: 0;
+  font-family: inherit; font-size: 11px; font-weight: 600;
+  text-align: right; font-variant-numeric: tabular-nums;
+  padding: 5px 9px; border-radius: 8px;
+  border: 1px solid #C3D8F0; background: #F6FAFF; color: #1B2C4F;
 }
+body.js-estatus .fin-estatus-form input.fin-estatus-monto { visibility: hidden; }
+body.js-estatus .fin-estatus-form.is-parcial input.fin-estatus-monto { visibility: visible; }
+
+/* Guardar: aparece cuando hay algo que guardar, y ahí sí se ve como la acción
+   de la fila. Dice "Guardar" y no un ícono suelto: el nombre de una acción es
+   la señalización de la pantalla. */
 .fin-estatus-save {
-  font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 6px;
-  border: 1px solid #D7DDE8; background: #fff; color: #2D5F8B; cursor: pointer;
+  flex-shrink: 0;
+  font-family: inherit; font-size: 11px; font-weight: 700;
+  padding: 5px 12px; border-radius: 8px;
+  border: 1px solid #2D5F8B; background: #2D5F8B; color: #fff; cursor: pointer;
+  transition: background-color .15s ease;
 }
-.fin-estatus-save:hover { background: #EAF1FB; }
+.fin-estatus-save:hover { background: #24507A; border-color: #24507A; }
+body.js-estatus .fin-estatus-form .fin-estatus-save { visibility: hidden; }
+body.js-estatus .fin-estatus-form.is-dirty .fin-estatus-save { visibility: visible; }
+
+.fin-estatus-form select:focus-visible,
+.fin-estatus-form input:focus-visible,
+.fin-estatus-form button:focus-visible {
+  outline: 2px solid #2D5F8B; outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fin-estatus-form select.fin-estatus-select,
+  .fin-estatus-save { transition: none; }
+}
 
 /* ===== Nómina semanal: botón real, filtros, mensajes ===== */
 .fin-btn-primary.fin-btn-activo { cursor: pointer; }

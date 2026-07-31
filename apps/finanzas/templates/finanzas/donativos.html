@@ -48,8 +48,7 @@
                 {% csrf_token %}
                 <input type="hidden" name="accion" value="estatus_donativo">
                 <input type="hidden" name="id" value="{{ d.id }}">
-                <select name="estatus_cfdi" class="fin-estatus-select fin-estatus-{{ d.estatus_cfdi }}"
-                        onchange="this.className='fin-estatus-select fin-estatus-'+this.value;">
+                <select name="estatus_cfdi" class="fin-estatus-select fin-estatus-{{ d.estatus_cfdi }}" aria-label="Estatus del CFDI">
                   {% for valor, etiqueta in estatus_cfdi_choices %}
                   <option value="{{ valor }}" {% if valor == d.estatus_cfdi %}selected{% endif %}>{{ etiqueta }}</option>
                   {% endfor %}

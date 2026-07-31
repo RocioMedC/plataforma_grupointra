@@ -46,8 +46,7 @@
                 {% csrf_token %}
                 <input type="hidden" name="accion" value="estatus_egreso">
                 <input type="hidden" name="id" value="{{ e.id }}">
-                <select name="estatus" class="fin-estatus-select fin-estatus-{{ e.estatus }}"
-                        onchange="this.className='fin-estatus-select fin-estatus-'+this.value;">
+                <select name="estatus" class="fin-estatus-select fin-estatus-{{ e.estatus }}" aria-label="Estatus del egreso">
                   {% for valor, etiqueta in egreso_estatus_choices %}
                   <option value="{{ valor }}" {% if valor == e.estatus %}selected{% endif %}>{{ etiqueta }}</option>
                   {% endfor %}
