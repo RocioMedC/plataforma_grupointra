@@ -7,6 +7,22 @@
 {% endblock %}
 
 {% block contenido %}
+<form method="get" class="fin-card fin-card-pad fin-filter-form" style="margin-bottom:16px;">
+  <div class="fin-field"><label for="filtro-desde">Desde</label><input type="date" id="filtro-desde" name="fecha_inicio" value="{{ fecha_inicio }}"></div>
+  <div class="fin-field"><label for="filtro-hasta">Hasta</label><input type="date" id="filtro-hasta" name="fecha_fin" value="{{ fecha_fin }}"></div>
+  <div class="fin-field">
+    <label for="filtro-estatus">Estatus</label>
+    <select name="estatus" id="filtro-estatus">
+      <option value="">— Todos —</option>
+      {% for valor, etiqueta in estatus_choices %}
+      <option value="{{ valor }}"{% if estatus_filtro == valor %} selected{% endif %}>{{ etiqueta }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="fin-btn-outline">Filtrar</button>
+  <a class="fin-btn-outline" href="{% url 'finanzas:ingresos' %}">Limpiar</a>
+</form>
+
 <div class="fin-stat-row">
   {% for s in stats %}
   <div class="fin-stat">
@@ -18,7 +34,16 @@
 
 <div class="fin-card fin-table-card">
   <div class="fin-table-toolbar">
-    <div class="fin-card-title">Registro de ingresos</div>
+    <div>
+      <div class="fin-card-title">Registro de ingresos</div>
+      <div class="fin-card-subtitle">
+        {% if hay_corte %}
+        Mostrando {{ mostradas }} de {{ total_en_rango }} ingresos del rango. Acota las fechas para verlos todos.
+        {% else %}
+        {{ total_en_rango }} ingreso{{ total_en_rango|pluralize }} en el rango. Las cifras de arriba suman exactamente estas filas.
+        {% endif %}
+      </div>
+    </div>
   </div>
   <div class="fin-table-wrap">
     <table class="fin-table">
@@ -63,7 +88,7 @@
           <td>{{ row.fecha|date:"d M" }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="7" class="fin-empty">Todavía no hay ingresos registrados este mes.</td></tr>
+        <tr><td colspan="7" class="fin-empty">No hay ingresos que coincidan con el filtro. Prueba con otro rango de fechas o con otro estatus.</td></tr>
         {% endfor %}
       </tbody>
     </table>

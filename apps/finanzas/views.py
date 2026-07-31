@@ -47,6 +47,20 @@ from .pdfs import render_pdf
 
 MESES_ABREV = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
+# Tope de filas de la tabla de Ingresos. No es paginación: es un freno para no
+# volcar miles de filas de golpe. La pantalla avisa cuándo está cortando.
+LIMITE_FILAS_INGRESOS = 200
+
+
+def _url_conservando_filtros(request, nombre_url):
+    """URL de la vista con el querystring actual. El formulario de la tabla
+    hace POST a la URL con filtros incluidos, así que tras guardar hay que
+    devolver al usuario al mismo rango que estaba viendo, no al de por
+    defecto."""
+    base = reverse(nombre_url)
+    querystring = request.GET.urlencode()
+    return f'{base}?{querystring}' if querystring else base
+
 COLOR_POR_CONCEPTO = {
     Ingreso.Concepto.CONSULTA: '#1B2C4F',
     Ingreso.Concepto.INSCRIPCION_DIPLOMADO: '#2D5F8B',
@@ -330,32 +344,64 @@ def ingresos_view(request):
                     etiqueta='cobrado',
                 )
                 messages.success(request, 'Estatus actualizado correctamente.')
-            return redirect('finanzas:ingresos')
+            return redirect(_url_conservando_filtros(request, 'finanzas:ingresos'))
         form_ingreso = IngresoForm(request.POST)
         if form_ingreso.is_valid():
             _guardar_con_bitacora(request, form_ingreso, 'Ingreso registrado correctamente.')
-            return redirect('finanzas:ingresos')
+            return redirect(_url_conservando_filtros(request, 'finanzas:ingresos'))
     else:
         form_ingreso = IngresoForm(initial={'fecha': hoy})
 
-    ingresos_mes = Ingreso.objects.filter(fecha__year=hoy.year, fecha__month=hoy.month)
+    # El filtro manda sobre TODO lo que se ve: las tres cifras y la tabla
+    # salen del mismo queryset. Antes las cifras eran del mes en curso y la
+    # tabla los últimos 200 de cualquier fecha, así que el encabezado y las
+    # filas describían periodos distintos (y con 239 ingresos en un mes, la
+    # tabla ni siquiera alcanzaba a mostrar el mes que estaba resumiendo).
+    fecha_inicio = _fecha_desde_query(request, 'fecha_inicio') or hoy.replace(day=1)
+    fecha_fin = _fecha_desde_query(request, 'fecha_fin') or hoy
+    if fecha_inicio > fecha_fin:
+        messages.error(request, 'El rango de fechas no es válido: "Desde" es posterior a "Hasta".')
+        fecha_inicio, fecha_fin = hoy.replace(day=1), hoy
+
+    # Un estatus que no exista se ignora en vez de dejar la tabla vacía sin
+    # explicación (mismo criterio que _actualizar_estatus_simple).
+    estatus_filtro = request.GET.get('estatus') or ''
+    if estatus_filtro not in Ingreso.Estatus.values:
+        estatus_filtro = ''
+
+    ingresos_filtrados = Ingreso.objects.filter(fecha__gte=fecha_inicio, fecha__lte=fecha_fin)
+    if estatus_filtro:
+        ingresos_filtrados = ingresos_filtrados.filter(estatus=estatus_filtro)
+
     # Se diferencia el total capturado (lo que se debe cobrar en total) de
     # lo efectivamente cobrado (Pagado completo + la parte ya cobrada de un
     # Parcial) y lo que todavía falta por cobrar — antes "Cobrado" solo veía
     # los Pagado completos e ignoraba lo ya cobrado de un Parcial.
-    total_capturado = _suma(ingresos_mes)
-    cobrado = _ingresos_efectivos(ingresos_mes)
+    total_capturado = _suma(ingresos_filtrados)
+    cobrado = _ingresos_efectivos(ingresos_filtrados)
     stats = [
         {'label': 'Total capturado', 'value': _dinero(total_capturado), 'color': '#1B2C4F'},
         {'label': 'Cobrado', 'value': _dinero(cobrado), 'color': '#1F8A5B'},
         {'label': 'Pendiente por cobrar', 'value': _dinero(total_capturado - cobrado), 'color': '#9A6B12'},
     ]
+
+    # El tope se queda como red de seguridad, pero ahora la pantalla dice
+    # cuántos hay en total: un corte silencioso es peor que un corte visible.
+    total_en_rango = ingresos_filtrados.count()
+    filas = ingresos_filtrados.select_related('terapeuta').order_by('-fecha')[:LIMITE_FILAS_INGRESOS]
+
     contexto = {
         'vista_actual': 'ingresos',
         'stats': stats,
-        'ingresos': Ingreso.objects.select_related('terapeuta').order_by('-fecha')[:200],
+        'ingresos': filas,
         'form_ingreso': form_ingreso,
         'estatus_choices': Ingreso.Estatus.choices,
+        'fecha_inicio': fecha_inicio.isoformat(),
+        'fecha_fin': fecha_fin.isoformat(),
+        'estatus_filtro': estatus_filtro,
+        'total_en_rango': total_en_rango,
+        'mostradas': min(total_en_rango, LIMITE_FILAS_INGRESOS),
+        'hay_corte': total_en_rango > LIMITE_FILAS_INGRESOS,
     }
     return render(request, 'finanzas/ingresos.html', contexto)
 
