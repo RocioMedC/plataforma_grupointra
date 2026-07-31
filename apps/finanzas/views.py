@@ -45,8 +45,6 @@ from .nomina_semanal import (
 )
 from .pdfs import render_pdf
 
-META_ANUAL_DONATIVOS = Decimal('2000000')
-
 MESES_ABREV = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
 COLOR_POR_CONCEPTO = {
@@ -815,11 +813,15 @@ def donativos_view(request):
 
     donativos_mes = Donativo.objects.filter(fecha__year=hoy.year, fecha__month=hoy.month)
     donativos_anio = Donativo.objects.filter(fecha__year=hoy.year)
+    # Sin meta anual: había una de $2,000,000 escrita a mano en el código,
+    # sin nada que respaldara ese número (se quitó junto con la del tablero,
+    # 2026-07-31). El subtítulo dice cuántos donativos hay detrás del monto.
+    cuenta_anio = donativos_anio.exclude(estatus_cfdi=Donativo.EstatusCFDI.CANCELADO).count()
     stats = [
         # Un CFDI Cancelado nunca fue dinero real: no suma en ninguna de
         # estas tarjetas (mismo criterio que el tablero).
         {'label': 'Donativos del mes', 'value': _dinero(_donativos_efectivos(donativos_mes)), 'sub': f'{donativos_mes.count()} donantes'},
-        {'label': f'Acumulado {hoy.year}', 'value': _dinero(_donativos_efectivos(donativos_anio)), 'sub': f'meta {_dinero(META_ANUAL_DONATIVOS)}'},
+        {'label': f'Acumulado {hoy.year}', 'value': _dinero(_donativos_efectivos(donativos_anio)), 'sub': f'{cuenta_anio} donativo{"s" if cuenta_anio != 1 else ""}'},
         {
             'label': 'CFDI emitidos',
             'value': str(donativos_anio.exclude(folio_cfdi='').exclude(folio_cfdi__isnull=True).count()),
