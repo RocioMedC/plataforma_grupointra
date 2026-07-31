@@ -206,8 +206,8 @@ table.fin-table tfoot td { padding: 14px 16px; font-weight: 700; }
 .fin-cat-B { background: #EAF1FB; color: #2D5F8B; }
 .fin-cat-C { background: #F3F5F9; color: #5A6472; }
 
-/* Edición inline del estatus de una fila (Ingresos, Egresos, Honorarios,
-   Donativos) sin salir de la tabla ni ir a /admin/. */
+/* Edición inline del estatus de una fila (Ingresos, Egresos, Donativos)
+   sin salir de la tabla ni ir a /admin/. */
 .fin-estatus-form { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
 .fin-estatus-form select.fin-estatus-select {
   font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 20px;
@@ -276,7 +276,7 @@ table.fin-table tfoot td { padding: 14px 16px; font-weight: 700; }
 .fin-stat-value { font-size: 22px; font-weight: 700; margin-top: 6px; font-variant-numeric: tabular-nums; }
 .fin-stat-sub { font-size: 11.5px; color: #9AA2B1; margin-top: 4px; }
 
-/* ===== Honorarios banner ===== */
+/* ===== Banner informativo de encabezado ===== */
 .fin-banner { background: #EDF3FA; border: 1px solid #D3E2F1; border-radius: 14px; padding: 16px 20px; display: flex; align-items: center; gap: 13px; }
 .fin-banner-icon { width: 38px; height: 38px; border-radius: 10px; background: #2D5F8B; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .fin-banner-text { font-size: 13px; color: #2D5F8B; line-height: 1.5; }

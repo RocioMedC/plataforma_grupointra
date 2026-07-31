@@ -108,20 +108,20 @@
 
       <div class="fin-card fin-card-pad">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-          <span class="fin-card-title" style="font-size:16px;">Honorarios pendientes</span>
-          <span class="fin-badge fin-badge-pendiente">{{ pendientes|length }} terapeuta{{ pendientes|length|pluralize }}</span>
+          <span class="fin-card-title" style="font-size:16px;">Pagos pendientes</span>
+          <span class="fin-badge fin-badge-pendiente">{{ pendientes|length }} egreso{{ pendientes|length|pluralize }}</span>
         </div>
         {% for p in pendientes %}
         <div class="fin-list-row" style="padding:9px 0;">
-          <span class="fin-list-icon" style="width:30px; height:30px; background:#EDF1F7; color:#2D5F8B; font-size:11px;">{{ p.terapeuta.username|slice:":2"|upper }}</span>
+          <span class="fin-list-icon" style="width:30px; height:30px; background:#EDF1F7; color:#2D5F8B; font-size:11px;">{{ p.titulo|slice:":2"|upper }}</span>
           <div class="fin-list-body">
-            <div class="fin-list-title">{{ p.terapeuta.get_full_name|default:p.terapeuta.username }}</div>
-            <div class="fin-list-meta">Cat. {{ p.categoria }} · {{ p.num_pacientes }} pacientes</div>
+            <div class="fin-list-title">{{ p.titulo }}</div>
+            <div class="fin-list-meta">{{ p.meta }}</div>
           </div>
           <span style="font-size:13.5px; font-weight:700; font-variant-numeric:tabular-nums;">{{ p.total }}</span>
         </div>
         {% empty %}
-        <div class="fin-empty">No hay honorarios pendientes.</div>
+        <div class="fin-empty">No hay pagos pendientes.</div>
         {% endfor %}
       </div>
     </div>
@@ -186,7 +186,7 @@
   </div>
 
   <div class="fin-mov-form" data-tipo="egreso" style="display:none;">
-    <form method="post" action="{% url 'finanzas:honorarios' %}" class="fin-modal-form">
+    <form method="post" action="{% url 'finanzas:egresos' %}" class="fin-modal-form">
       {% csrf_token %}
       <div class="fin-modal-grid">
         <div class="fin-field fin-field-full">

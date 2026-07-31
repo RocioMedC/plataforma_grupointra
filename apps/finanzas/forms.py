@@ -6,8 +6,7 @@ from django.contrib.auth import get_user_model
 from .duplicados import existe_duplicado
 from .models import (
     CategoriaEgreso, ConceptoIngreso, ConceptoNominaAcademia, Donativo, Egreso,
-    Honorario, Ingreso, LineaNominaSemanal, Maestro, NominaAcademia, Tabulador,
-    TabuladorAcademia,
+    Ingreso, LineaNominaSemanal, Maestro, NominaAcademia, TabuladorAcademia,
 )
 
 User = get_user_model()
@@ -74,51 +73,6 @@ class IngresoForm(forms.ModelForm):
         if monto is not None and monto_pagado > monto:
             raise forms.ValidationError('Lo cobrado no puede ser mayor que el monto total.')
         datos['monto_pagado'] = monto_pagado
-        return datos
-
-
-class TabuladorForm(forms.ModelForm):
-    class Meta:
-        model = Tabulador
-        fields = ['categoria', 'pago_base', 'umbral_pacientes_semana', 'monto_bono', 'vigente_desde']
-        widgets = {
-            'categoria': forms.Select(attrs=_ATTRS),
-            'pago_base': forms.NumberInput(attrs={**_ATTRS, 'step': '0.01', 'min': '0.01'}),
-            'umbral_pacientes_semana': forms.NumberInput(attrs={**_ATTRS, 'min': '0'}),
-            'monto_bono': forms.NumberInput(attrs={**_ATTRS, 'step': '0.01', 'min': '0'}),
-            'vigente_desde': forms.DateInput(attrs={**_ATTRS, 'type': 'date'}),
-        }
-
-
-class HonorarioForm(forms.ModelForm):
-    class Meta:
-        model = Honorario
-        fields = ['terapeuta', 'tabulador', 'periodo_mes', 'periodo_anio', 'num_pacientes', 'estatus']
-        widgets = {
-            'terapeuta': forms.Select(attrs=_ATTRS),
-            'tabulador': forms.Select(attrs=_ATTRS),
-            'periodo_mes': forms.Select(choices=[(m, n) for m, n in [
-                (1, 'Enero'), (2, 'Febrero'), (3, 'Marzo'), (4, 'Abril'), (5, 'Mayo'), (6, 'Junio'),
-                (7, 'Julio'), (8, 'Agosto'), (9, 'Septiembre'), (10, 'Octubre'), (11, 'Noviembre'), (12, 'Diciembre'),
-            ]], attrs=_ATTRS),
-            'periodo_anio': forms.NumberInput(attrs={**_ATTRS, 'min': '2020'}),
-            'num_pacientes': forms.NumberInput(attrs={**_ATTRS, 'min': '0'}),
-            'estatus': forms.Select(attrs=_ATTRS),
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields['terapeuta'].queryset = User.objects.filter(
-            groups__name='Terapeutas'
-        ).order_by('first_name', 'username')
-
-    def clean(self):
-        datos = super().clean()
-        terapeuta, mes, anio = datos.get('terapeuta'), datos.get('periodo_mes'), datos.get('periodo_anio')
-        if terapeuta and mes and anio and existe_duplicado(Honorario, terapeuta=terapeuta, periodo_mes=mes, periodo_anio=anio):
-            raise forms.ValidationError(
-                f'Ya existe un honorario de {terapeuta} para {mes}/{anio}. Si necesitas corregirlo, usa un Ajuste.'
-            )
         return datos
 
 
@@ -246,10 +200,6 @@ class TabuladorAcademiaForm(forms.ModelForm):
 class AjusteForm(forms.Form):
     # Sin slice: ModelChoiceField valida la selección con queryset.get(pk=...),
     # y Django no permite filtrar/get sobre un queryset ya recortado con [:n].
-    honorario = forms.ModelChoiceField(
-        queryset=Honorario.objects.select_related('terapeuta').order_by('-periodo_anio', '-periodo_mes'),
-        required=False, label='Honorario a corregir', widget=forms.Select(attrs=_ATTRS),
-    )
     nomina_academia = forms.ModelChoiceField(
         queryset=NominaAcademia.objects.select_related('maestro').order_by('-periodo_anio', '-periodo_mes'),
         required=False, label='Nómina Academia a corregir', widget=forms.Select(attrs=_ATTRS),
@@ -266,15 +216,15 @@ class AjusteForm(forms.Form):
 
     def clean(self):
         datos = super().clean()
-        elegidos = [v for v in (datos.get('honorario'), datos.get('nomina_academia'), datos.get('egreso')) if v]
+        elegidos = [v for v in (datos.get('nomina_academia'), datos.get('egreso')) if v]
         if len(elegidos) != 1:
             raise forms.ValidationError(
-                'Selecciona exactamente un registro (Honorario, Nómina Academia o Egreso) para ajustar.'
+                'Selecciona exactamente un registro (Nómina Academia o Egreso) para ajustar.'
             )
         return datos
 
     def registro_elegido(self):
-        for campo, modelo in (('honorario', Honorario), ('nomina_academia', NominaAcademia), ('egreso', Egreso)):
+        for campo, modelo in (('nomina_academia', NominaAcademia), ('egreso', Egreso)):
             valor = self.cleaned_data.get(campo)
             if valor:
                 return modelo, valor.pk

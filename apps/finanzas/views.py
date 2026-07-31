@@ -22,16 +22,15 @@ from .ajustes import AjusteError, registrar_ajuste
 from .duplicados import DuplicadoError
 from .forms import (
     AjusteForm, CategoriaEgresoForm, ConceptoIngresoForm, DonativoForm, EgresoForm,
-    HonorarioForm, IngresoForm, LineaNominaManualForm, MaestroForm,
-    NominaAcademiaCaptureForm, ReporteRecepcionUploadForm, TabuladorAcademiaForm,
-    TabuladorForm,
+    IngresoForm, LineaNominaManualForm, MaestroForm, NominaAcademiaCaptureForm,
+    ReporteRecepcionUploadForm, TabuladorAcademiaForm,
 )
 from .integraciones.consultorioweb import ConsultorioWebError
 from .integraciones.importador_recepcion import importar_citas
 from .integraciones.reporte_recepcion import ReporteRecepcionError, leer_reporte_api, leer_reporte_excel
 from .models import (
     Ajuste, CategoriaEgreso, CitaRecepcion, ConceptoIngreso, Donativo, Egreso,
-    Honorario, Ingreso, LineaNominaSemanal, Maestro, NominaAcademia, NominaSemanal,
+    Ingreso, LineaNominaSemanal, Maestro, NominaAcademia, NominaSemanal,
     TabuladorAcademia,
 )
 from .nomina_academia import (
@@ -74,8 +73,8 @@ def acceso_finanzas_requerido(vista):
 
 
 def _actualizar_estatus_simple(request, modelo, campo_estatus, valores_validos):
-    """Cambia el campo de estatus de un registro ya existente (Egreso,
-    Honorario o Donativo) desde un control inline en la tabla, sin pasar por
+    """Cambia el campo de estatus de un registro ya existente (Egreso o
+    Donativo) desde un control inline en la tabla, sin pasar por
     /admin/. `valores_validos` es el conjunto de choices válidos del campo;
     cualquier otro valor se rechaza en vez de guardarse a ciegas. El cambio
     queda asentado en la bitácora."""
@@ -115,11 +114,6 @@ def _ingresos_efectivos(queryset):
 def _egresos_efectivos(queryset):
     """Egresos ya pagados; uno Pendiente no cuenta hasta que se pague."""
     return _suma(queryset.filter(estatus=Egreso.Estatus.PAGADO))
-
-
-def _honorarios_efectivos(queryset):
-    """Honorarios ya pagados; uno Pendiente no cuenta hasta que se pague."""
-    return _suma(queryset.filter(estatus=Honorario.Estatus.PAGADO), 'total')
 
 
 def _donativos_efectivos(queryset):
@@ -169,23 +163,20 @@ def tablero_view(request):
 
     ingresos_mes = Ingreso.objects.filter(fecha__year=hoy.year, fecha__month=hoy.month)
     egresos_mes = Egreso.objects.filter(fecha__year=hoy.year, fecha__month=hoy.month)
-    honorarios_mes = Honorario.objects.filter(periodo_anio=hoy.year, periodo_mes=hoy.month)
     donativos_mes = Donativo.objects.filter(fecha__year=hoy.year, fecha__month=hoy.month)
 
     ingresos_mes_ant = _ingresos_efectivos(Ingreso.objects.filter(fecha__year=anio_ant, fecha__month=mes_ant))
     egresos_mes_ant = _egresos_efectivos(Egreso.objects.filter(fecha__year=anio_ant, fecha__month=mes_ant))
-    honorarios_mes_ant = _honorarios_efectivos(Honorario.objects.filter(periodo_anio=anio_ant, periodo_mes=mes_ant))
     donativos_mes_ant = _donativos_efectivos(Donativo.objects.filter(fecha__year=anio_ant, fecha__month=mes_ant))
 
-    # Solo cuenta dinero real: un Ingreso/Egreso/Honorario Pendiente no suma
-    # al tablero hasta que se marca Pagado (o, en Ingreso, lo que ya se
-    # cobró si está Parcial). Un Donativo Cancelado tampoco suma.
+    # Solo cuenta dinero real: un Ingreso/Egreso Pendiente no suma al tablero
+    # hasta que se marca Pagado (o, en Ingreso, lo que ya se cobró si está
+    # Parcial). Un Donativo Cancelado tampoco suma.
     total_ingresos = _ingresos_efectivos(ingresos_mes)
     total_egresos = _egresos_efectivos(egresos_mes)
-    total_honorarios = _honorarios_efectivos(honorarios_mes)
     total_donativos = _donativos_efectivos(donativos_mes)
-    balance_neto = total_ingresos - total_egresos - total_honorarios
-    balance_neto_ant = ingresos_mes_ant - egresos_mes_ant - honorarios_mes_ant
+    balance_neto = total_ingresos - total_egresos
+    balance_neto_ant = ingresos_mes_ant - egresos_mes_ant
 
     def kpi(label, valor, anterior, accent):
         delta = _delta_pct(valor, anterior)
@@ -202,7 +193,6 @@ def tablero_view(request):
         kpi('Egresos del periodo', total_egresos, egresos_mes_ant, '#C9A24B'),
         kpi('Balance neto', balance_neto, balance_neto_ant, '#1F8A5B'),
         kpi('Donativos', total_donativos, donativos_mes_ant, '#15B3C7'),
-        kpi('Honorarios', total_honorarios, honorarios_mes_ant, '#1B2C4F'),
     ]
 
     barras = []
@@ -265,16 +255,16 @@ def tablero_view(request):
         'pct': pct_meta,
     }
 
+    # Los pagos a terapeutas ya no se calculan aquí (ver Nómina): lo que
+    # queda por pagar son Egresos pendientes, vengan del sellado de una
+    # nómina o de una captura manual.
     pendientes = [
         {
-            'terapeuta': h.terapeuta,
-            'categoria': h.tabulador.categoria,
-            'num_pacientes': h.num_pacientes,
-            'total': _dinero(h.total),
+            'titulo': e.persona or e.concepto,
+            'meta': e.get_categoria_display(),
+            'total': _dinero(e.monto),
         }
-        for h in Honorario.objects.select_related('terapeuta', 'tabulador')
-        .filter(estatus=Honorario.Estatus.PENDIENTE)
-        .order_by('-total')[:6]
+        for e in Egreso.objects.filter(estatus=Egreso.Estatus.PENDIENTE).order_by('-monto')[:6]
     ]
 
     contexto = {
@@ -355,56 +345,29 @@ def ingresos_view(request):
 
 
 @acceso_finanzas_requerido
-def honorarios_view(request):
+def egresos_view(request):
     hoy = timezone.now().date()
 
     form_egreso = EgresoForm(initial={'fecha': hoy})
-    form_tabulador = TabuladorForm(initial={'vigente_desde': hoy})
-    form_honorario = HonorarioForm(initial={'periodo_mes': hoy.month, 'periodo_anio': hoy.year})
 
     if request.method == 'POST':
-        accion = request.POST.get('accion')
-        if accion == 'tabulador':
-            form_tabulador = TabuladorForm(request.POST)
-            if form_tabulador.is_valid():
-                _guardar_con_bitacora(request, form_tabulador, 'Tabulador registrado correctamente.')
-                return redirect('finanzas:honorarios')
-        elif accion == 'honorario':
-            form_honorario = HonorarioForm(request.POST)
-            if form_honorario.is_valid():
-                _guardar_con_bitacora(request, form_honorario, 'Honorario registrado correctamente.')
-                return redirect('finanzas:honorarios')
-        elif accion == 'estatus_honorario':
-            _actualizar_estatus_simple(request, Honorario, 'estatus', Honorario.Estatus.values)
-            return redirect('finanzas:honorarios')
-        elif accion == 'estatus_egreso':
+        if request.POST.get('accion') == 'estatus_egreso':
             _actualizar_estatus_simple(request, Egreso, 'estatus', Egreso.Estatus.values)
-            return redirect('finanzas:honorarios')
-        else:
-            form_egreso = EgresoForm(request.POST)
-            if form_egreso.is_valid():
-                _guardar_con_bitacora(request, form_egreso, 'Egreso registrado correctamente.')
-                return redirect('finanzas:honorarios')
+            return redirect('finanzas:egresos')
+        form_egreso = EgresoForm(request.POST)
+        if form_egreso.is_valid():
+            _guardar_con_bitacora(request, form_egreso, 'Egreso registrado correctamente.')
+            return redirect('finanzas:egresos')
 
-    honorarios = (
-        Honorario.objects.select_related('terapeuta', 'tabulador')
-        .filter(periodo_anio=hoy.year, periodo_mes=hoy.month)
-        .order_by('terapeuta__first_name', 'terapeuta__username')
-    )
     egresos_mes = Egreso.objects.filter(fecha__year=hoy.year, fecha__month=hoy.month).order_by('-fecha')
     contexto = {
-        'vista_actual': 'honorarios',
-        'honorarios': honorarios,
-        'total_periodo': _dinero(_suma(honorarios, 'total')),
+        'vista_actual': 'egresos',
         'egresos': egresos_mes,
         'total_egresos_periodo': _dinero(_suma(egresos_mes)),
         'form_egreso': form_egreso,
-        'form_tabulador': form_tabulador,
-        'form_honorario': form_honorario,
-        'honorario_estatus_choices': Honorario.Estatus.choices,
         'egreso_estatus_choices': Egreso.Estatus.choices,
     }
-    return render(request, 'finanzas/honorarios.html', contexto)
+    return render(request, 'finanzas/egresos.html', contexto)
 
 
 def _periodo_de_nomina(request, hoy):
@@ -1005,7 +968,7 @@ def nomina_academia_periodo_descargar_view(request, anio, mes):
 
 @acceso_finanzas_requerido
 def ajustes_view(request):
-    """Corrige un Honorario, Nómina Academia o Egreso ya capturado sin
+    """Corrige una Nómina Academia o un Egreso ya capturado sin
     reescribir su historial: registra motivo + diferencia, y si la
     diferencia es un monto adicional a favor, genera un Egreso nuevo
     (criterio 10 del documento de requerimientos)."""
@@ -1119,7 +1082,6 @@ def reportes_view(request):
     hoy = timezone.now().date()
     ingresos_anio = Ingreso.objects.filter(fecha__year=hoy.year)
     donativos_anio = Donativo.objects.filter(fecha__year=hoy.year)
-    honorarios_anio = Honorario.objects.filter(periodo_anio=hoy.year)
     egresos_anio = Egreso.objects.filter(fecha__year=hoy.year)
 
     # Solo dinero real: Pendientes no suman hasta que se paguen, Cancelados
@@ -1128,7 +1090,6 @@ def reportes_view(request):
     total_donativos = _donativos_efectivos(donativos_anio)
     total_ingresos = total_ingresos_servicios + total_donativos
 
-    total_honorarios = _honorarios_efectivos(honorarios_anio)
     total_renta = (
         _egresos_efectivos(egresos_anio.filter(categoria=Egreso.Categoria.RENTA))
         + _egresos_efectivos(egresos_anio.filter(categoria=Egreso.Categoria.SERVICIOS))
@@ -1144,7 +1105,7 @@ def reportes_view(request):
     categorias_fijas = [c[0] for c in Egreso.Categoria.choices]
     total_otros = _egresos_efectivos(egresos_anio.exclude(categoria__in=categorias_fijas))
     total_egresos = (
-        total_honorarios + total_renta + total_nomina + total_nomina_terapeutas
+        total_renta + total_nomina + total_nomina_terapeutas
         + total_nomina_academia + total_insumos + total_otros
     )
 
@@ -1156,7 +1117,6 @@ def reportes_view(request):
         'total_ingresos_servicios': _dinero(total_ingresos_servicios),
         'total_donativos': _dinero(total_donativos),
         'total_ingresos': _dinero(total_ingresos),
-        'total_honorarios': _dinero(-total_honorarios),
         'total_nomina': _dinero(-total_nomina),
         'total_nomina_terapeutas': _dinero(-total_nomina_terapeutas),
         'total_nomina_academia': _dinero(-total_nomina_academia),
@@ -1195,18 +1155,15 @@ def exportar_view(request):
     ingresos = Ingreso.objects.select_related('terapeuta').order_by('fecha')
     egresos = Egreso.objects.order_by('fecha')
     donativos = Donativo.objects.order_by('fecha')
-    honorarios = Honorario.objects.select_related('terapeuta', 'tabulador').order_by('periodo_anio', 'periodo_mes')
 
     if desde:
         ingresos = ingresos.filter(fecha__gte=desde)
         egresos = egresos.filter(fecha__gte=desde)
         donativos = donativos.filter(fecha__gte=desde)
-        honorarios = honorarios.filter(periodo_anio__gte=desde.year)
     if hasta:
         ingresos = ingresos.filter(fecha__lte=hasta)
         egresos = egresos.filter(fecha__lte=hasta)
         donativos = donativos.filter(fecha__lte=hasta)
-        honorarios = honorarios.filter(periodo_anio__lte=hasta.year)
 
     filas = []
     for i in ingresos:
@@ -1215,11 +1172,6 @@ def exportar_view(request):
         filas.append(('Egreso', e.concepto, e.persona, e.monto, e.get_estatus_display(), e.fecha))
     for d in donativos:
         filas.append(('Donativo', f'Donativo {d.get_tipo_display().lower()}', d.donante_nombre, d.monto, d.get_estatus_cfdi_display(), d.fecha))
-    for h in honorarios:
-        fecha_periodo = date(h.periodo_anio, h.periodo_mes, 1)
-        if (desde and fecha_periodo < desde.replace(day=1)) or (hasta and fecha_periodo > hasta):
-            continue
-        filas.append(('Honorario', f'Honorario cat. {h.tabulador.categoria}', str(h.terapeuta), h.total, h.get_estatus_display(), fecha_periodo))
     filas.sort(key=lambda f: f[5])
 
     response = HttpResponse(content_type='text/csv')

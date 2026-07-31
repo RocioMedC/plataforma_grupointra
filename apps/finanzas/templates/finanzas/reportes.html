@@ -20,7 +20,6 @@
       <div class="fin-resultado-row"><span class="label" style="font-weight:600;">Total ingresos</span><span class="value">{{ total_ingresos }}</span></div>
 
       <div class="fin-resultado-row head"><span>Egresos</span><span></span></div>
-      <div class="fin-resultado-row"><span class="label">Honorarios de terapeutas</span><span class="value neg">{{ total_honorarios }}</span></div>
       <div class="fin-resultado-row"><span class="label">Nómina administrativa</span><span class="value neg">{{ total_nomina }}</span></div>
       <div class="fin-resultado-row"><span class="label">Nómina de terapeutas</span><span class="value neg">{{ total_nomina_terapeutas }}</span></div>
       <div class="fin-resultado-row"><span class="label">Nómina Academia</span><span class="value neg">{{ total_nomina_academia }}</span></div>
@@ -51,15 +50,6 @@
         <div class="fin-report-doc-body">
           <div class="fin-report-doc-name">Flujo de efectivo</div>
           <div class="fin-report-doc-desc">Entradas y salidas por periodo</div>
-        </div>
-        <span class="fin-report-doc-tag" style="color:#1F8A5B; background:#E6F4EC;">XLSX</span>
-      </div>
-
-      <div class="fin-report-doc" title="Disponible en una futura versión">
-        <span class="fin-report-doc-icon" style="background:#F6EFDD; color:#C9A24B;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"></path></svg></span>
-        <div class="fin-report-doc-body">
-          <div class="fin-report-doc-name">Detalle de honorarios</div>
-          <div class="fin-report-doc-desc">Cálculo por tabulador</div>
         </div>
         <span class="fin-report-doc-tag" style="color:#1F8A5B; background:#E6F4EC;">XLSX</span>
       </div>
@@ -99,7 +89,7 @@
         <input type="date" id="exportar-hasta" name="hasta" class="fin-input">
       </div>
       <div class="fin-field fin-field-full" style="color:#9AA2B1; font-weight:500;">
-        Deja las fechas vacías para exportar todo el historial. Incluye ingresos, egresos, honorarios y donativos en un solo CSV.
+        Deja las fechas vacías para exportar todo el historial. Incluye ingresos, egresos y donativos en un solo CSV.
       </div>
     </div>
     <div class="fin-modal-actions">

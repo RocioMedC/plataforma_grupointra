@@ -10,7 +10,7 @@ class DuplicadoError(Exception):
 def existe_duplicado(modelo, **filtros):
     """Verifica si ya existe un registro con esta combinación de campos.
     No decide qué hacer con el resultado: los flujos de captura manual
-    (Honorario, NominaAcademia) lo usan para bloquear con DuplicadoError;
+    (NominaAcademia, Egreso) lo usan para bloquear con DuplicadoError;
     los flujos de sincronización externa (Egreso.referencia_externa,
     CitaRecepcion) usan su propio update_or_create/get_or_create porque ahí
     sí se debe actualizar, no rechazar."""

@@ -65,7 +65,7 @@ if RAILWAY_PUBLIC_DOMAIN:
 INSTALLED_APPS = [
      # Núcleo del portal: acceso de usuarios, autenticación y permisos.
     'apps.core',
-    # Módulo de Finanzas: ingresos, honorarios, donativos y reportes.
+    # Módulo de Finanzas: ingresos, egresos, nómina, donativos y reportes.
     'apps.finanzas',
     'django.contrib.admin',
     'django.contrib.auth',

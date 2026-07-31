@@ -7,7 +7,7 @@ from django.utils import timezone
 from apps.core.auditoria.models import RegistroAuditoria
 from apps.core.auditoria.registro import registrar
 
-from .models import Ajuste, Egreso, Honorario, NominaAcademia
+from .models import Ajuste, Egreso, NominaAcademia
 from .textos import concepto_egreso
 
 
@@ -18,9 +18,6 @@ class AjusteError(Exception):
 def _datos_egreso(registro):
     """Persona, categoría, fecha y método de pago a usar en el Egreso que
     genera el ajuste, según de qué tipo de registro se trate."""
-    if isinstance(registro, Honorario):
-        fecha = date(registro.periodo_anio, registro.periodo_mes, 1)
-        return str(registro.terapeuta), Egreso.Categoria.NOMINA_ADMIN, fecha, ''
     if isinstance(registro, NominaAcademia):
         fecha = date(registro.periodo_anio, registro.periodo_mes, 1)
         return registro.maestro.nombre, Egreso.Categoria.NOMINA_ACADEMIA, fecha, registro.metodo_pago
@@ -30,9 +27,9 @@ def _datos_egreso(registro):
 
 
 def _monto_original(registro):
-    """Monto contra el que se compara el ajuste. Honorario y NominaAcademia
-    lo llaman `total`; Egreso, `monto`."""
-    if isinstance(registro, (Honorario, NominaAcademia)):
+    """Monto contra el que se compara el ajuste. NominaAcademia lo llama
+    `total`; Egreso, `monto`."""
+    if isinstance(registro, NominaAcademia):
         return registro.total
     if isinstance(registro, Egreso):
         return registro.monto
@@ -41,7 +38,7 @@ def _monto_original(registro):
 
 @transaction.atomic
 def registrar_ajuste(modelo, objeto_id, motivo, diferencia, usuario=None):
-    """Registra un ajuste sobre un Honorario, NominaAcademia o Egreso ya
+    """Registra un ajuste sobre una NominaAcademia o un Egreso ya
     existente, SIN modificar ese registro (queda congelado a propósito).
     Si la diferencia es un monto adicional a favor (> 0), genera un Egreso
     nuevo por ese monto. Una diferencia negativa (a favor de la institución)

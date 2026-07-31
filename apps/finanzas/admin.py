@@ -2,16 +2,9 @@ from django.contrib import admin
 
 from .models import (
     CategoriaEgreso, CitaRecepcion, ConceptoIngreso, ConceptoNominaAcademia,
-    Donativo, Egreso, Honorario, Ingreso, LineaNominaSemanal, Maestro,
-    NominaAcademia, NominaSemanal, Tabulador, TabuladorAcademia,
+    Donativo, Egreso, Ingreso, LineaNominaSemanal, Maestro, NominaAcademia,
+    NominaSemanal, TabuladorAcademia,
 )
-
-
-@admin.register(Tabulador)
-class TabuladorAdmin(admin.ModelAdmin):
-    list_display = ('categoria', 'pago_base', 'umbral_pacientes_semana', 'monto_bono', 'vigente_desde')
-    list_filter = ('categoria',)
-    ordering = ('-vigente_desde',)
 
 
 @admin.register(Ingreso)
@@ -27,13 +20,6 @@ class EgresoAdmin(admin.ModelAdmin):
     list_filter = ('categoria', 'estatus', 'fecha')
     search_fields = ('concepto', 'persona', 'referencia_externa')
     readonly_fields = ('referencia_externa',)
-
-
-@admin.register(Honorario)
-class HonorarioAdmin(admin.ModelAdmin):
-    list_display = ('terapeuta', 'tabulador', 'periodo_mes', 'periodo_anio', 'num_pacientes', 'bono', 'total', 'estatus')
-    list_filter = ('estatus', 'periodo_anio', 'periodo_mes')
-    readonly_fields = ('bono', 'total')
 
 
 class LineaNominaSemanalInline(admin.TabularInline):
