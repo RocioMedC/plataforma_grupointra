@@ -9,7 +9,7 @@ from apps.core.auditoria.models import RegistroAuditoria
 from apps.core.auditoria.registro import registrar
 
 from .duplicados import DuplicadoError, existe_duplicado
-from .models import ConceptoNominaAcademia, Egreso, NominaAcademia
+from .models import ConceptoNominaAcademia, Egreso, NominaAcademia, Unidad
 from .textos import concepto_egreso
 
 
@@ -99,6 +99,7 @@ def sellar_nomina_academia(nomina, usuario=None, fecha_pago=None):
                 f'{etiqueta} · {nomina.maestro} · {nomina.periodo_mes}/{nomina.periodo_anio}'
             ),
             categoria=Egreso.Categoria.NOMINA_ACADEMIA,
+            unidad=Unidad.ACADEMIA,
             persona=nomina.maestro.nombre,
             monto=linea.subtotal,
             metodo_pago=nomina.metodo_pago,

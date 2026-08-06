@@ -7,6 +7,18 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 
+class Unidad(models.TextChoices):
+    """A qué parte de la institución pertenece un movimiento de dinero.
+    Intra es la operación clínica (consultas, nómina de terapeutas, gastos
+    del centro) y Academia es la escuela (diplomados, talleres, nómina de
+    maestros). No son dos contabilidades separadas: el tablero puede verse
+    por unidad o con TODO junto, y en "Todos" cada movimiento suma una sola
+    vez."""
+
+    INTRA = 'intra', 'Intra'
+    ACADEMIA = 'academia', 'Academia'
+
+
 class CategoriaTerapeuta(models.TextChoices):
     A = 'A', 'Categoría A'
     B = 'B', 'Categoría B'
@@ -53,6 +65,7 @@ class Ingreso(models.Model):
     # catálogo de Configuración (ConceptoIngreso) permite agregar conceptos
     # con nombre libre, más largos que las claves fijas.
     concepto = models.CharField(max_length=50, choices=Concepto.choices)
+    unidad = models.CharField(max_length=10, choices=Unidad.choices, default=Unidad.INTRA)
     terapeuta = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name='ingresos',
@@ -152,6 +165,7 @@ class Egreso(models.Model):
     # max_length=50 (no 20): el catálogo de Configuración (CategoriaEgreso)
     # permite agregar categorías con nombre libre, además de las fijas.
     categoria = models.CharField(max_length=50, choices=Categoria.choices)
+    unidad = models.CharField(max_length=10, choices=Unidad.choices, default=Unidad.INTRA)
     persona = models.CharField('Terapeuta / Proveedor', max_length=150, blank=True)
     monto = models.DecimalField(max_digits=10, decimal_places=2)
     metodo_pago = models.CharField(max_length=20, choices=MetodoPago.choices, blank=True)

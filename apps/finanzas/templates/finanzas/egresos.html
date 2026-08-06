@@ -26,6 +26,7 @@
           <tr>
             <th>Concepto</th>
             <th>Categoría</th>
+            <th>Unidad</th>
             <th>Persona / Proveedor</th>
             <th class="num">Monto</th>
             <th>Método de pago</th>
@@ -38,6 +39,7 @@
           <tr>
             <td>{{ e.concepto }}</td>
             <td>{{ e.get_categoria_display }}</td>
+            <td><span class="fin-unidad-badge fin-unidad-{{ e.unidad }}">{{ e.get_unidad_display }}</span></td>
             <td>{{ e.persona|default:"—" }}</td>
             <td class="num">{{ e.monto|dinero }}</td>
             <td>{{ e.get_metodo_pago_display|default:"—" }}</td>
@@ -57,13 +59,13 @@
             <td>{{ e.fecha|date:"d M" }}</td>
           </tr>
           {% empty %}
-          <tr><td colspan="7" class="fin-empty">Todavía no hay egresos registrados este mes.</td></tr>
+          <tr><td colspan="8" class="fin-empty">Todavía no hay egresos registrados este mes.</td></tr>
           {% endfor %}
         </tbody>
         {% if egresos %}
         <tfoot>
           <tr>
-            <td colspan="3">Total egresos del periodo</td>
+            <td colspan="4">Total egresos del periodo</td>
             <td class="num">{{ total_egresos_periodo }}</td>
             <td colspan="3"></td>
           </tr>
@@ -96,6 +98,11 @@
         <label for="{{ form_egreso.categoria.id_for_label }}">Categoría</label>
         {{ form_egreso.categoria }}
         {% if form_egreso.categoria.errors %}<span class="fin-field-error">{{ form_egreso.categoria.errors.0 }}</span>{% endif %}
+      </div>
+      <div class="fin-field">
+        <label for="{{ form_egreso.unidad.id_for_label }}">Unidad</label>
+        {{ form_egreso.unidad }}
+        {% if form_egreso.unidad.errors %}<span class="fin-field-error">{{ form_egreso.unidad.errors.0 }}</span>{% endif %}
       </div>
       <div class="fin-field">
         <label for="{{ form_egreso.persona.id_for_label }}">Terapeuta / Proveedor</label>

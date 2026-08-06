@@ -52,6 +52,7 @@
           <th>Concepto</th>
           <th>Alumno / Paciente</th>
           <th>Terapeuta</th>
+          <th>Unidad</th>
           <th class="num">Monto</th>
           <th class="num">Cobrado</th>
           <th>Estatus</th>
@@ -64,6 +65,7 @@
           <td>{{ row.get_concepto_display }}</td>
           <td>{{ row.persona|default:"—" }}</td>
           <td>{% if row.terapeuta %}{{ row.terapeuta.get_full_name|default:row.terapeuta.username }}{% else %}—{% endif %}</td>
+          <td><span class="fin-unidad-badge fin-unidad-{{ row.unidad }}">{{ row.get_unidad_display }}</span></td>
           <td class="num">{{ row.monto|dinero }}</td>
           <td class="num">
             {% if row.estatus == 'pagado' %}{{ row.monto|dinero }}
@@ -87,7 +89,7 @@
           <td>{{ row.fecha|date:"d M" }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="7" class="fin-empty">No hay ingresos que coincidan con el filtro. Prueba con otro rango de fechas o con otro estatus.</td></tr>
+        <tr><td colspan="8" class="fin-empty">No hay ingresos que coincidan con el filtro. Prueba con otro rango de fechas o con otro estatus.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -109,6 +111,11 @@
         <label for="{{ form_ingreso.concepto.id_for_label }}">Concepto</label>
         {{ form_ingreso.concepto }}
         {% if form_ingreso.concepto.errors %}<span class="fin-field-error">{{ form_ingreso.concepto.errors.0 }}</span>{% endif %}
+      </div>
+      <div class="fin-field">
+        <label for="{{ form_ingreso.unidad.id_for_label }}">Unidad</label>
+        {{ form_ingreso.unidad }}
+        {% if form_ingreso.unidad.errors %}<span class="fin-field-error">{{ form_ingreso.unidad.errors.0 }}</span>{% endif %}
       </div>
       <div class="fin-field">
         <label for="{{ form_ingreso.terapeuta.id_for_label }}">Terapeuta</label>

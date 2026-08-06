@@ -21,7 +21,7 @@ from apps.core.auditoria.models import RegistroAuditoria
 from apps.core.auditoria.registro import registrar
 
 from .integraciones.consultorioweb import obtener_cortes_semanales
-from .models import CitaRecepcion, Egreso, LineaNominaSemanal, NominaSemanal
+from .models import CitaRecepcion, Egreso, LineaNominaSemanal, NominaSemanal, Unidad
 from .textos import concepto_egreso
 
 logger = logging.getLogger(__name__)
@@ -245,6 +245,9 @@ def sellar_linea(linea, usuario=None):
         creados.append(Egreso.objects.create(
             concepto=concepto_egreso(f'{etiqueta} · {linea.persona} · {periodo}'),
             categoria=categoria,
+            # La nómina semanal, la quincenal y la administrativa son de la
+            # operación clínica; la de la escuela es NominaAcademia.
+            unidad=Unidad.INTRA,
             persona=linea.persona,
             monto=monto,
             metodo_pago=metodo,

@@ -2,6 +2,12 @@
 
 {% block titulo %}Tablero general{% endblock %}
 {% block acciones_header %}
+<nav class="fin-unidad-tabs" aria-label="Filtrar por unidad">
+  <a class="fin-unidad-tab{% if not unidad_filtro %} is-activo{% endif %}" href="{% url 'finanzas:tablero' %}">Todos</a>
+  {% for valor, etiqueta in unidad_choices %}
+  <a class="fin-unidad-tab{% if unidad_filtro == valor %} is-activo{% endif %}" href="{% url 'finanzas:tablero' %}?unidad={{ valor }}">{{ etiqueta }}</a>
+  {% endfor %}
+</nav>
 <button type="button" class="fin-btn-primary fin-btn-activo" onclick="document.getElementById('dialog-movimiento').showModal()">Nuevo movimiento</button>
 {% endblock %}
 
@@ -27,7 +33,7 @@
   <div class="fin-two-col">
     <div class="fin-card fin-card-pad">
       <div class="fin-card-title">Ingresos vs. Egresos</div>
-      <div class="fin-card-subtitle">Últimos 6 meses · pesos MXN</div>
+      <div class="fin-card-subtitle">Últimos 6 meses · pesos MXN{% if unidad_filtro %} · solo {{ unidad_etiqueta }}{% endif %}</div>
       <div class="fin-legend" style="margin-top:10px;">
         <span class="fin-legend-item"><span class="fin-legend-dot" style="background:#2D5F8B;"></span>Ingresos</span>
         <span class="fin-legend-item"><span class="fin-legend-dot" style="background:#C9A24B;"></span>Egresos</span>
@@ -47,7 +53,7 @@
 
     <div class="fin-card fin-card-pad">
       <div class="fin-card-title">Ingresos por concepto</div>
-      <div class="fin-card-subtitle">Mes en curso</div>
+      <div class="fin-card-subtitle">Mes en curso{% if unidad_filtro %} · solo {{ unidad_etiqueta }}{% endif %}</div>
       <div class="fin-donut-wrap">
         <div class="fin-donut" style="--gradient: {{ donut_gradient|safe }};">
           <div class="fin-donut-hole">
@@ -102,7 +108,7 @@
           <span>{{ donativos_anio.cantidad }} donativo{{ donativos_anio.cantidad|pluralize }}</span>
         </div>
         <div class="fin-goal-value">{{ donativos_anio.acumulado }}</div>
-        <div class="fin-goal-note">Acumulado del año. No cuenta los CFDI cancelados.</div>
+        <div class="fin-goal-note">Acumulado del año. No cuenta los CFDI cancelados.{% if unidad_filtro %} Los donativos son de la institución, no se separan por unidad.{% endif %}</div>
       </div>
 
       <div class="fin-card fin-card-pad">
@@ -160,6 +166,10 @@
           {{ form_ingreso.concepto }}
         </div>
         <div class="fin-field">
+          <label for="{{ form_ingreso.unidad.id_for_label }}">Unidad</label>
+          {{ form_ingreso.unidad }}
+        </div>
+        <div class="fin-field">
           <label for="{{ form_ingreso.terapeuta.id_for_label }}">Terapeuta</label>
           {{ form_ingreso.terapeuta }}
         </div>
@@ -202,6 +212,10 @@
         <div class="fin-field">
           <label for="{{ form_egreso.categoria.id_for_label }}">Categoría</label>
           {{ form_egreso.categoria }}
+        </div>
+        <div class="fin-field">
+          <label for="{{ form_egreso.unidad.id_for_label }}">Unidad</label>
+          {{ form_egreso.unidad }}
         </div>
         <div class="fin-field">
           <label for="{{ form_egreso.persona.id_for_label }}">Terapeuta / Proveedor</label>

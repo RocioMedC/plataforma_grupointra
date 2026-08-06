@@ -31,9 +31,10 @@ def _opciones_categoria_egreso():
 class IngresoForm(forms.ModelForm):
     class Meta:
         model = Ingreso
-        fields = ['concepto', 'terapeuta', 'persona', 'monto', 'monto_pagado', 'estatus', 'fecha']
+        fields = ['concepto', 'unidad', 'terapeuta', 'persona', 'monto', 'monto_pagado', 'estatus', 'fecha']
         widgets = {
             'concepto': forms.Select(attrs=_ATTRS),
+            'unidad': forms.Select(attrs=_ATTRS),
             'terapeuta': forms.Select(attrs=_ATTRS),
             'persona': forms.TextInput(attrs={**_ATTRS, 'placeholder': 'Nombre del alumno o paciente'}),
             'monto': forms.NumberInput(attrs={**_ATTRS, 'step': '0.01', 'min': '0.01'}),
@@ -41,7 +42,10 @@ class IngresoForm(forms.ModelForm):
             'estatus': forms.Select(attrs=_ATTRS),
             'fecha': forms.DateInput(attrs={**_ATTRS, 'type': 'date'}),
         }
-        labels = {'monto_pagado': 'Cuánto se ha cobrado ya (solo si es Parcial)'}
+        labels = {
+            'monto_pagado': 'Cuánto se ha cobrado ya (solo si es Parcial)',
+            'unidad': 'Unidad',
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -248,16 +252,18 @@ class CategoriaEgresoForm(forms.ModelForm):
 class EgresoForm(forms.ModelForm):
     class Meta:
         model = Egreso
-        fields = ['concepto', 'categoria', 'persona', 'monto', 'metodo_pago', 'estatus', 'fecha']
+        fields = ['concepto', 'categoria', 'unidad', 'persona', 'monto', 'metodo_pago', 'estatus', 'fecha']
         widgets = {
             'concepto': forms.TextInput(attrs=_ATTRS),
             'categoria': forms.Select(attrs=_ATTRS),
+            'unidad': forms.Select(attrs=_ATTRS),
             'persona': forms.TextInput(attrs={**_ATTRS, 'placeholder': 'Terapeuta o proveedor'}),
             'monto': forms.NumberInput(attrs={**_ATTRS, 'step': '0.01', 'min': '0.01'}),
             'metodo_pago': forms.Select(attrs=_ATTRS),
             'estatus': forms.Select(attrs=_ATTRS),
             'fecha': forms.DateInput(attrs={**_ATTRS, 'type': 'date'}),
         }
+        labels = {'unidad': 'Unidad'}
 
     # La regla general de la sección 2 del documento pide impedir duplicidad
     # por periodo/persona/concepto. Para un egreso capturado a mano no se

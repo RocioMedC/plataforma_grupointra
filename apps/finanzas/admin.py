@@ -9,15 +9,15 @@ from .models import (
 
 @admin.register(Ingreso)
 class IngresoAdmin(admin.ModelAdmin):
-    list_display = ('concepto', 'terapeuta', 'persona', 'monto', 'estatus', 'fecha')
-    list_filter = ('concepto', 'estatus', 'fecha')
+    list_display = ('concepto', 'unidad', 'terapeuta', 'persona', 'monto', 'estatus', 'fecha')
+    list_filter = ('unidad', 'concepto', 'estatus', 'fecha')
     search_fields = ('persona',)
 
 
 @admin.register(Egreso)
 class EgresoAdmin(admin.ModelAdmin):
-    list_display = ('concepto', 'categoria', 'persona', 'monto', 'estatus', 'metodo_pago', 'fecha')
-    list_filter = ('categoria', 'estatus', 'fecha')
+    list_display = ('concepto', 'categoria', 'unidad', 'persona', 'monto', 'estatus', 'metodo_pago', 'fecha')
+    list_filter = ('unidad', 'categoria', 'estatus', 'fecha')
     search_fields = ('concepto', 'persona', 'referencia_externa')
     readonly_fields = ('referencia_externa',)
 

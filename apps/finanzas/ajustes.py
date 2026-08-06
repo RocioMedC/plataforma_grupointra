@@ -7,7 +7,7 @@ from django.utils import timezone
 from apps.core.auditoria.models import RegistroAuditoria
 from apps.core.auditoria.registro import registrar
 
-from .models import Ajuste, Egreso, NominaAcademia
+from .models import Ajuste, Egreso, NominaAcademia, Unidad
 from .textos import concepto_egreso
 
 
@@ -16,13 +16,26 @@ class AjusteError(Exception):
 
 
 def _datos_egreso(registro):
-    """Persona, categoría, fecha y método de pago a usar en el Egreso que
-    genera el ajuste, según de qué tipo de registro se trate."""
+    """Datos del Egreso que genera el ajuste, según de qué tipo de registro
+    se trate. La unidad (Intra / Academia) se hereda del registro corregido:
+    un ajuste nunca cambia de unidad respecto a lo que está corrigiendo, o
+    el tablero filtrado dejaría de cuadrar."""
     if isinstance(registro, NominaAcademia):
-        fecha = date(registro.periodo_anio, registro.periodo_mes, 1)
-        return registro.maestro.nombre, Egreso.Categoria.NOMINA_ACADEMIA, fecha, registro.metodo_pago
+        return {
+            'persona': registro.maestro.nombre,
+            'categoria': Egreso.Categoria.NOMINA_ACADEMIA,
+            'unidad': Unidad.ACADEMIA,
+            'fecha': date(registro.periodo_anio, registro.periodo_mes, 1),
+            'metodo_pago': registro.metodo_pago,
+        }
     if isinstance(registro, Egreso):
-        return registro.persona, registro.categoria, timezone.now().date(), registro.metodo_pago
+        return {
+            'persona': registro.persona,
+            'categoria': registro.categoria,
+            'unidad': registro.unidad,
+            'fecha': timezone.now().date(),
+            'metodo_pago': registro.metodo_pago,
+        }
     raise AjusteError('Tipo de registro no soportado para ajustes.')
 
 
@@ -61,15 +74,11 @@ def registrar_ajuste(modelo, objeto_id, motivo, diferencia, usuario=None):
     )
 
     if diferencia > 0:
-        persona, categoria, fecha, metodo_pago = _datos_egreso(registro)
         egreso = Egreso.objects.create(
             concepto=concepto_egreso(f'Ajuste: {motivo} (ref. {registro})'),
-            categoria=categoria,
-            persona=persona,
             monto=diferencia,
-            metodo_pago=metodo_pago,
             estatus=Egreso.Estatus.PENDIENTE,
-            fecha=fecha,
+            **_datos_egreso(registro),
         )
         ajuste.egreso_generado = egreso
         ajuste.save(update_fields=['egreso_generado'])

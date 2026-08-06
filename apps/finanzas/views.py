@@ -31,7 +31,7 @@ from .integraciones.reporte_recepcion import ReporteRecepcionError, leer_reporte
 from .models import (
     Ajuste, CategoriaEgreso, CitaRecepcion, ConceptoIngreso, Donativo, Egreso,
     Ingreso, LineaNominaSemanal, Maestro, NominaAcademia, NominaSemanal,
-    TabuladorAcademia,
+    TabuladorAcademia, Unidad,
 )
 from .nomina_academia import (
     NominaAcademiaError, capturar_nomina_academia, sellar_nomina_academia,
@@ -144,6 +144,22 @@ def _ingresos_por_concepto_efectivo(queryset):
     return totales
 
 
+def _unidad_pedida(request):
+    """Unidad seleccionada en el filtro del tablero. Cadena vacía = "Todos",
+    que es también a lo que cae cualquier valor desconocido (mismo criterio
+    que el filtro de estatus de Ingresos: se ignora en vez de dejar la
+    pantalla vacía sin explicación)."""
+    unidad = request.GET.get('unidad') or ''
+    return unidad if unidad in Unidad.values else ''
+
+
+def _de_unidad(queryset, unidad):
+    """Recorta un queryset de Ingreso/Egreso a una unidad. Con "Todos" no
+    filtra nada: cada movimiento pertenece a una sola unidad, así que la
+    suma de Intra y Academia es exactamente el total."""
+    return queryset.filter(unidad=unidad) if unidad else queryset
+
+
 def _dinero(valor):
     return f'-${abs(valor):,.0f}' if valor < 0 else f'${valor:,.0f}'
 
@@ -173,12 +189,20 @@ def tablero_view(request):
     hoy = timezone.now().date()
     anio_ant, mes_ant = _mes_anterior(hoy.year, hoy.month)
 
-    ingresos_mes = Ingreso.objects.filter(fecha__year=hoy.year, fecha__month=hoy.month)
-    egresos_mes = Egreso.objects.filter(fecha__year=hoy.year, fecha__month=hoy.month)
+    # Todo el tablero (KPIs, barras, dona, movimientos y pendientes) se lee
+    # con la unidad elegida. Los Donativos no: no pertenecen ni a la clínica
+    # ni a la escuela, son de la institución, así que no tienen campo
+    # `unidad` y se muestran igual en las tres vistas — el KPI lo dice.
+    unidad = _unidad_pedida(request)
+    ingresos_todos = _de_unidad(Ingreso.objects.all(), unidad)
+    egresos_todos = _de_unidad(Egreso.objects.all(), unidad)
+
+    ingresos_mes = ingresos_todos.filter(fecha__year=hoy.year, fecha__month=hoy.month)
+    egresos_mes = egresos_todos.filter(fecha__year=hoy.year, fecha__month=hoy.month)
     donativos_mes = Donativo.objects.filter(fecha__year=hoy.year, fecha__month=hoy.month)
 
-    ingresos_mes_ant = _ingresos_efectivos(Ingreso.objects.filter(fecha__year=anio_ant, fecha__month=mes_ant))
-    egresos_mes_ant = _egresos_efectivos(Egreso.objects.filter(fecha__year=anio_ant, fecha__month=mes_ant))
+    ingresos_mes_ant = _ingresos_efectivos(ingresos_todos.filter(fecha__year=anio_ant, fecha__month=mes_ant))
+    egresos_mes_ant = _egresos_efectivos(egresos_todos.filter(fecha__year=anio_ant, fecha__month=mes_ant))
     donativos_mes_ant = _donativos_efectivos(Donativo.objects.filter(fecha__year=anio_ant, fecha__month=mes_ant))
 
     # Solo cuenta dinero real: un Ingreso/Egreso Pendiente no suma al tablero
@@ -204,13 +228,16 @@ def tablero_view(request):
         kpi('Ingresos del periodo', total_ingresos, ingresos_mes_ant, '#2D5F8B'),
         kpi('Egresos del periodo', total_egresos, egresos_mes_ant, '#C9A24B'),
         kpi('Balance neto', balance_neto, balance_neto_ant, '#1F8A5B'),
-        kpi('Donativos', total_donativos, donativos_mes_ant, '#15B3C7'),
+        kpi(
+            'Donativos (institucional)' if unidad else 'Donativos',
+            total_donativos, donativos_mes_ant, '#15B3C7',
+        ),
     ]
 
     barras = []
     for anio, mes in _meses_recientes(6):
-        ing = _ingresos_efectivos(Ingreso.objects.filter(fecha__year=anio, fecha__month=mes))
-        egr = _egresos_efectivos(Egreso.objects.filter(fecha__year=anio, fecha__month=mes))
+        ing = _ingresos_efectivos(ingresos_todos.filter(fecha__year=anio, fecha__month=mes))
+        egr = _egresos_efectivos(egresos_todos.filter(fecha__year=anio, fecha__month=mes))
         barras.append({'mes': MESES_ABREV[mes], 'ingreso': ing, 'egreso': egr})
     max_barra = max([b['ingreso'] for b in barras] + [b['egreso'] for b in barras] + [Decimal('1')])
     for b in barras:
@@ -251,11 +278,15 @@ def tablero_view(request):
             'concepto': e.concepto, 'meta': e.get_categoria_display(),
             'monto': _dinero(e.monto), 'signo': '-', 'fecha': e.fecha,
         })
-    for d in donativos_mes.exclude(estatus_cfdi=Donativo.EstatusCFDI.CANCELADO).order_by('-fecha')[:5]:
-        recientes.append({
-            'concepto': f'Donativo {d.get_tipo_display().lower()}', 'meta': d.donante_nombre,
-            'monto': _dinero(d.monto), 'signo': '+', 'fecha': d.fecha,
-        })
+    # Filtrando por unidad no se listan: un donativo no es un movimiento de
+    # Intra ni de Academia, y mezclarlo aquí haría que la lista no cuadre con
+    # los KPIs de arriba.
+    if not unidad:
+        for d in donativos_mes.exclude(estatus_cfdi=Donativo.EstatusCFDI.CANCELADO).order_by('-fecha')[:5]:
+            recientes.append({
+                'concepto': f'Donativo {d.get_tipo_display().lower()}', 'meta': d.donante_nombre,
+                'monto': _dinero(d.monto), 'signo': '+', 'fecha': d.fecha,
+            })
     recientes.sort(key=lambda r: r['fecha'], reverse=True)
     recientes = recientes[:5]
 
@@ -281,7 +312,7 @@ def tablero_view(request):
     # se debe perder de vista. Por eso el resumen va aparte del recorte a 6 —
     # el badge tiene que decir cuántos hay en total, no cuántos se alcanzan a
     # pintar.
-    pendientes_qs = Egreso.objects.filter(estatus=Egreso.Estatus.PENDIENTE)
+    pendientes_qs = egresos_todos.filter(estatus=Egreso.Estatus.PENDIENTE)
     pendientes = [
         {
             'titulo': e.persona or e.concepto,
@@ -298,6 +329,9 @@ def tablero_view(request):
 
     contexto = {
         'vista_actual': 'tablero',
+        'unidad_filtro': unidad,
+        'unidad_etiqueta': Unidad(unidad).label if unidad else 'Todos',
+        'unidad_choices': Unidad.choices,
         'kpis': kpis,
         'barras': barras,
         'concepto_legend': concepto_legend,
@@ -1233,17 +1267,18 @@ def exportar_view(request):
 
     filas = []
     for i in ingresos:
-        filas.append(('Ingreso', i.get_concepto_display(), i.persona or (str(i.terapeuta) if i.terapeuta else ''), i.monto, i.get_estatus_display(), i.fecha))
+        filas.append(('Ingreso', i.get_unidad_display(), i.get_concepto_display(), i.persona or (str(i.terapeuta) if i.terapeuta else ''), i.monto, i.get_estatus_display(), i.fecha))
     for e in egresos:
-        filas.append(('Egreso', e.concepto, e.persona, e.monto, e.get_estatus_display(), e.fecha))
+        filas.append(('Egreso', e.get_unidad_display(), e.concepto, e.persona, e.monto, e.get_estatus_display(), e.fecha))
+    # Los donativos son de la institución, no de una unidad (ver tablero_view).
     for d in donativos:
-        filas.append(('Donativo', f'Donativo {d.get_tipo_display().lower()}', d.donante_nombre, d.monto, d.get_estatus_cfdi_display(), d.fecha))
-    filas.sort(key=lambda f: f[5])
+        filas.append(('Donativo', '', f'Donativo {d.get_tipo_display().lower()}', d.donante_nombre, d.monto, d.get_estatus_cfdi_display(), d.fecha))
+    filas.sort(key=lambda f: f[6])
 
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="finanzas_movimientos.csv"'
     writer = csv.writer(response)
-    writer.writerow(['Tipo', 'Concepto', 'Persona', 'Monto', 'Estatus', 'Fecha'])
-    for tipo, concepto, persona, monto, estatus, fecha in filas:
-        writer.writerow([tipo, concepto, persona, monto, estatus, fecha.isoformat()])
+    writer.writerow(['Tipo', 'Unidad', 'Concepto', 'Persona', 'Monto', 'Estatus', 'Fecha'])
+    for tipo, unidad, concepto, persona, monto, estatus, fecha in filas:
+        writer.writerow([tipo, unidad, concepto, persona, monto, estatus, fecha.isoformat()])
     return response

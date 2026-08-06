@@ -1,6 +1,6 @@
 from django.db import transaction
 
-from apps.finanzas.models import CitaRecepcion, Ingreso
+from apps.finanzas.models import CitaRecepcion, Ingreso, Unidad
 
 # Regla de negocio confirmada con Administración INTRA (2026-07-21): solo
 # 'Sí asistió' cuenta como ingreso real. Confirmada/Sin confirmar/Reagendó/
@@ -57,6 +57,7 @@ def importar_cita(fila):
         else:
             ingreso = Ingreso.objects.create(
                 concepto=Ingreso.Concepto.CONSULTA,
+                unidad=Unidad.INTRA,
                 persona=cita.paciente,
                 monto=cita.costo,
                 estatus=Ingreso.Estatus.PAGADO,
