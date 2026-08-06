@@ -44,8 +44,11 @@ from .nomina_semanal import (
     totales_nomina,
 )
 from .pdfs import render_pdf
-
-MESES_ABREV = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+from .reportes import (
+    MESES_ABREV, concentrado_donativos, estado_de_resultados, etiqueta_periodo,
+    flujo_efectivo_xlsx, rango_pedido, sufijo_archivo,
+)
+from .totales import donativos_efectivos, egresos_efectivos, ingresos_efectivos, suma
 
 # Tope de filas de la tabla de Ingresos. No es paginación: es un freno para no
 # volcar miles de filas de golpe. La pantalla avisa cuándo está cortando.
@@ -110,27 +113,13 @@ def _guardar_con_bitacora(request, form, mensaje):
     return obj
 
 
-def _suma(queryset, campo='monto'):
-    return queryset.aggregate(total=Sum(campo))['total'] or Decimal('0')
-
-
-def _ingresos_efectivos(queryset):
-    """Ingresos que ya son dinero real: el monto completo si está Pagado,
-    solo lo cobrado (monto_pagado) si está Parcial. Un ingreso Pendiente no
-    cuenta todavía — así lo pidió Administración al revisar el tablero."""
-    pagado = _suma(queryset.filter(estatus=Ingreso.Estatus.PAGADO))
-    parcial = _suma(queryset.filter(estatus=Ingreso.Estatus.PARCIAL), 'monto_pagado')
-    return pagado + parcial
-
-
-def _egresos_efectivos(queryset):
-    """Egresos ya pagados; uno Pendiente no cuenta hasta que se pague."""
-    return _suma(queryset.filter(estatus=Egreso.Estatus.PAGADO))
-
-
-def _donativos_efectivos(queryset):
-    """Donativos vigentes o en trámite; uno Cancelado no debe sumar."""
-    return _suma(queryset.exclude(estatus_cfdi=Donativo.EstatusCFDI.CANCELADO))
+# El criterio de "cuánto dinero es real" vive en totales.py porque también lo
+# usan los documentos descargables (reportes.py). Los alias privados de abajo
+# existen para no reescribir las decenas de llamadas de este archivo.
+_suma = suma
+_ingresos_efectivos = ingresos_efectivos
+_egresos_efectivos = egresos_efectivos
+_donativos_efectivos = donativos_efectivos
 
 
 def _ingresos_por_concepto_efectivo(queryset):
@@ -1179,55 +1168,75 @@ def configuracion_view(request):
 
 @acceso_finanzas_requerido
 def reportes_view(request):
+    # La pantalla siempre muestra el ejercicio en curso; los documentos que se
+    # descargan sí piden rango. El cálculo es el mismo (reportes.py) para que
+    # el PDF de este año no pueda diferir de lo que se ve aquí.
     hoy = timezone.now().date()
-    ingresos_anio = Ingreso.objects.filter(fecha__year=hoy.year)
-    donativos_anio = Donativo.objects.filter(fecha__year=hoy.year)
-    egresos_anio = Egreso.objects.filter(fecha__year=hoy.year)
-
-    # Solo dinero real: Pendientes no suman hasta que se paguen, Cancelados
-    # no suman nunca (mismo criterio que el tablero, ver _ingresos_efectivos).
-    total_ingresos_servicios = _ingresos_efectivos(ingresos_anio)
-    total_donativos = _donativos_efectivos(donativos_anio)
-    total_ingresos = total_ingresos_servicios + total_donativos
-
-    total_renta = (
-        _egresos_efectivos(egresos_anio.filter(categoria=Egreso.Categoria.RENTA))
-        + _egresos_efectivos(egresos_anio.filter(categoria=Egreso.Categoria.SERVICIOS))
-    )
-    total_nomina = _egresos_efectivos(egresos_anio.filter(categoria=Egreso.Categoria.NOMINA_ADMIN))
-    total_nomina_terapeutas = _egresos_efectivos(egresos_anio.filter(categoria=Egreso.Categoria.NOMINA_TERAPEUTAS))
-    total_nomina_academia = _egresos_efectivos(egresos_anio.filter(categoria=Egreso.Categoria.NOMINA_ACADEMIA))
-    total_insumos = _egresos_efectivos(egresos_anio.filter(categoria=Egreso.Categoria.INSUMOS))
-    # "Otros egresos": cualquier categoría agregada desde Configuración que
-    # no sea una de las categorías fijas de arriba. Así el total siempre
-    # cuadra con la suma real, sin importar cuántas categorías nuevas agregue
-    # el usuario despues.
-    categorias_fijas = [c[0] for c in Egreso.Categoria.choices]
-    total_otros = _egresos_efectivos(egresos_anio.exclude(categoria__in=categorias_fijas))
-    total_egresos = (
-        total_renta + total_nomina + total_nomina_terapeutas
-        + total_nomina_academia + total_insumos + total_otros
-    )
-
-    resultado_ejercicio = total_ingresos - total_egresos
+    datos = estado_de_resultados(date(hoy.year, 1, 1), date(hoy.year, 12, 31))
 
     contexto = {
         'vista_actual': 'reportes',
         'anio': hoy.year,
-        'total_ingresos_servicios': _dinero(total_ingresos_servicios),
-        'total_donativos': _dinero(total_donativos),
-        'total_ingresos': _dinero(total_ingresos),
-        'total_nomina': _dinero(-total_nomina),
-        'total_nomina_terapeutas': _dinero(-total_nomina_terapeutas),
-        'total_nomina_academia': _dinero(-total_nomina_academia),
-        'total_renta': _dinero(-total_renta),
-        'total_insumos': _dinero(-total_insumos),
-        'total_otros': _dinero(-total_otros),
-        'total_egresos': _dinero(-total_egresos),
-        'resultado_ejercicio': _dinero(resultado_ejercicio),
-        'resultado_negativo': resultado_ejercicio < 0,
+        'total_ingresos_servicios': _dinero(datos['ingresos_servicios']),
+        'total_donativos': _dinero(datos['donativos']),
+        'total_ingresos': _dinero(datos['total_ingresos']),
+        'total_nomina': _dinero(-datos['nomina_admin']),
+        'total_nomina_terapeutas': _dinero(-datos['nomina_terapeutas']),
+        'total_nomina_academia': _dinero(-datos['nomina_academia']),
+        'total_renta': _dinero(-datos['renta']),
+        'total_insumos': _dinero(-datos['insumos']),
+        'total_otros': _dinero(-datos['otros']),
+        'total_egresos': _dinero(-datos['total_egresos']),
+        'resultado_ejercicio': _dinero(datos['resultado']),
+        'resultado_negativo': datos['resultado'] < 0,
     }
     return render(request, 'finanzas/reportes.html', contexto)
+
+
+# ===== Los tres documentos de "Generar reportes" =====
+# Los tres reciben el rango del mismo modal (`?periodo=todo` o
+# `?periodo=rango&desde=…&hasta=…`) y devuelven un archivo para descargar, no
+# una pantalla. La lógica está en reportes.py; aquí solo se resuelve el rango.
+# No se escriben en la bitácora: descargar es una consulta, no un cambio
+# (mismo criterio que `exportar_view`).
+
+@acceso_finanzas_requerido
+def reporte_estado_resultados_view(request):
+    desde, hasta = rango_pedido(request)
+    contexto = {
+        'datos': estado_de_resultados(desde, hasta),
+        'periodo_etiqueta': etiqueta_periodo(desde, hasta),
+        'usuario_genera': request.user,
+        'generado_en': timezone.now(),
+    }
+    return render_pdf(
+        'finanzas/estado_resultados_pdf.html', contexto,
+        f'estado_resultados_{sufijo_archivo(desde, hasta)}.pdf',
+    )
+
+
+@acceso_finanzas_requerido
+def reporte_flujo_efectivo_view(request):
+    desde, hasta = rango_pedido(request)
+    return flujo_efectivo_xlsx(
+        desde, hasta,
+        generado_por=request.user.get_full_name() or request.user.username,
+    )
+
+
+@acceso_finanzas_requerido
+def reporte_donativos_view(request):
+    desde, hasta = rango_pedido(request)
+    contexto = {
+        'datos': concentrado_donativos(desde, hasta),
+        'periodo_etiqueta': etiqueta_periodo(desde, hasta),
+        'usuario_genera': request.user,
+        'generado_en': timezone.now(),
+    }
+    return render_pdf(
+        'finanzas/donativos_pdf.html', contexto,
+        f'concentrado_donativos_{sufijo_archivo(desde, hasta)}.pdf',
+    )
 
 
 def _fecha_desde_query(request, nombre):

@@ -36,32 +36,43 @@
     <div class="fin-card fin-card-pad">
       <div class="fin-card-title" style="font-size:16px; margin-bottom:14px;">Generar reportes</div>
 
-      <div class="fin-report-doc" title="Disponible en una futura versión">
+      {% comment %}
+        Los tres son botones que abren el mismo modal de periodo; lo único que
+        cambia es a qué URL se descarga. El nombre y el destino se leen de los
+        data-* en el script del final.
+      {% endcomment %}
+      <button type="button" class="fin-report-doc" data-reporte
+              data-url="{% url 'finanzas:reporte_estado_resultados' %}"
+              data-nombre="Estado de resultados">
         <span class="fin-report-doc-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="4" y="3" width="16" height="18" rx="2"></rect><line x1="8" y1="8" x2="16" y2="8"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg></span>
-        <div class="fin-report-doc-body">
-          <div class="fin-report-doc-name">Estado de resultados</div>
-          <div class="fin-report-doc-desc">Ingresos, egresos y balance</div>
-        </div>
+        <span class="fin-report-doc-body">
+          <span class="fin-report-doc-name">Estado de resultados</span>
+          <span class="fin-report-doc-desc">Ingresos, egresos y balance</span>
+        </span>
         <span class="fin-report-doc-tag">PDF</span>
-      </div>
+      </button>
 
-      <div class="fin-report-doc" title="Disponible en una futura versión">
+      <button type="button" class="fin-report-doc" data-reporte
+              data-url="{% url 'finanzas:reporte_flujo_efectivo' %}"
+              data-nombre="Flujo de efectivo">
         <span class="fin-report-doc-icon" style="background:#E6F4EC; color:#1F8A5B;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><line x1="12" y1="3" x2="12" y2="21"></line><path d="M4 7h6a3 3 0 0 1 0 6H4"></path><path d="M20 17h-6a3 3 0 0 1 0-6h6"></path></svg></span>
-        <div class="fin-report-doc-body">
-          <div class="fin-report-doc-name">Flujo de efectivo</div>
-          <div class="fin-report-doc-desc">Entradas y salidas por periodo</div>
-        </div>
+        <span class="fin-report-doc-body">
+          <span class="fin-report-doc-name">Flujo de efectivo</span>
+          <span class="fin-report-doc-desc">Entradas y salidas por periodo</span>
+        </span>
         <span class="fin-report-doc-tag" style="color:#1F8A5B; background:#E6F4EC;">XLSX</span>
-      </div>
+      </button>
 
-      <div class="fin-report-doc" style="margin-bottom:0;" title="Disponible en una futura versión">
+      <button type="button" class="fin-report-doc" style="margin-bottom:0;" data-reporte
+              data-url="{% url 'finanzas:reporte_donativos' %}"
+              data-nombre="Concentrado de donativos">
         <span class="fin-report-doc-icon" style="background:#E1F1F3; color:#15B3C7;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M20.8 5.6a5.5 5.5 0 0 0-7.8 0L12 6.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"></path></svg></span>
-        <div class="fin-report-doc-body">
-          <div class="fin-report-doc-name">Concentrado de donativos</div>
-          <div class="fin-report-doc-desc">CFDI emitidos y estatus</div>
-        </div>
+        <span class="fin-report-doc-body">
+          <span class="fin-report-doc-name">Concentrado de donativos</span>
+          <span class="fin-report-doc-desc">CFDI emitidos y estatus</span>
+        </span>
         <span class="fin-report-doc-tag">PDF</span>
-      </div>
+      </button>
     </div>
 
     <div class="fin-gold-cta">
@@ -72,6 +83,50 @@
   </div>
 
 </div>
+
+<dialog id="dialog-reporte" class="fin-modal">
+  {% comment %}
+    Un solo modal para los tres reportes: el script de abajo le pone el
+    `action` del que se picó. Los campos de fecha nacen deshabilitados y solo
+    se prenden al elegir "Un rango de fechas", así que la opción por defecto
+    (todo el historial) no depende de que el usuario vacíe nada.
+  {% endcomment %}
+  <form method="get" id="form-reporte" class="fin-modal-form">
+    <div class="fin-modal-header">
+      <div class="fin-card-title" id="reporte-titulo">Generar reporte</div>
+      <button type="button" class="fin-modal-close" onclick="this.closest('dialog').close()" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="fin-modal-grid">
+      <div class="fin-field fin-field-full">
+        <span>¿Qué periodo quieres incluir?</span>
+        <label class="fin-radio">
+          <input type="radio" name="periodo" value="todo" checked>
+          <span>Todo el historial</span>
+        </label>
+        <label class="fin-radio">
+          <input type="radio" name="periodo" value="rango">
+          <span>Un rango de fechas</span>
+        </label>
+      </div>
+      <div class="fin-field">
+        <label for="reporte-desde">Desde</label>
+        <input type="date" id="reporte-desde" name="desde" class="fin-input" disabled>
+      </div>
+      <div class="fin-field">
+        <label for="reporte-hasta">Hasta</label>
+        <input type="date" id="reporte-hasta" name="hasta" class="fin-input" disabled>
+      </div>
+      <div class="fin-field fin-field-full" style="color:#9AA2B1; font-weight:500;">
+        Deja un extremo vacío para dejarlo abierto: solo "Desde" incluye todo a
+        partir de esa fecha, y solo "Hasta" incluye todo lo anterior a ella.
+      </div>
+    </div>
+    <div class="fin-modal-actions">
+      <button type="button" class="fin-btn-outline" onclick="this.closest('dialog').close()">Cancelar</button>
+      <button type="submit" class="fin-btn-primary fin-btn-activo">Generar</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="dialog-exportar" class="fin-modal">
   <form method="get" action="{% url 'finanzas:exportar' %}" class="fin-modal-form">
@@ -98,4 +153,39 @@
     </div>
   </form>
 </dialog>
+
+<script>
+  (function () {
+    var dialogo = document.getElementById('dialog-reporte');
+    var formulario = document.getElementById('form-reporte');
+    var titulo = document.getElementById('reporte-titulo');
+    if (!dialogo || !formulario) { return; }
+
+    var fechas = formulario.querySelectorAll('input[type="date"]');
+
+    // Los campos de fecha solo se pueden llenar con "Un rango de fechas"
+    // elegido; deshabilitados no se mandan, así que la opción "Todo el
+    // historial" siempre llega limpia al servidor.
+    formulario.addEventListener('change', function (evento) {
+      if (evento.target.name !== 'periodo') { return; }
+      var porRango = evento.target.value === 'rango';
+      Array.prototype.forEach.call(fechas, function (campo) { campo.disabled = !porRango; });
+      if (porRango) { fechas[0].focus(); }
+    });
+
+    Array.prototype.forEach.call(document.querySelectorAll('[data-reporte]'), function (boton) {
+      boton.addEventListener('click', function () {
+        formulario.action = boton.dataset.url;
+        titulo.textContent = boton.dataset.nombre;
+        dialogo.showModal();
+      });
+    });
+
+    // El servidor responde con un archivo adjunto, así que la página no
+    // cambia: hay que cerrar el modal a mano para que no quede encima.
+    formulario.addEventListener('submit', function () {
+      window.setTimeout(function () { dialogo.close(); }, 0);
+    });
+  })();
+</script>
 {% endblock %}

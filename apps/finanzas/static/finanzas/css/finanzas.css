@@ -373,15 +373,36 @@ body.js-estatus .fin-estatus-form.is-parcial input.fin-estatus-monto { visibilit
 .fin-resultado-row.total .value { font-family: 'Source Serif 4', serif; font-size: 20px; font-weight: 700; color: #1F8A5B; }
 .fin-resultado-row.total .value.neg { color: #B4413B; }
 
+/* Cada reporte es un <button>: abre el modal que pregunta el periodo y luego
+   descarga el archivo. Por eso hay que apagar el estilo propio del botón
+   (fondo, tipografía, ancho) antes de darle el aspecto de tarjeta. */
 .fin-report-doc {
   display: flex; align-items: center; gap: 13px; padding: 13px 14px; border: 1px solid #E6EAF2;
-  border-radius: 12px; margin-bottom: 10px; background: #fff; cursor: not-allowed;
+  border-radius: 12px; margin-bottom: 10px; background: #fff; cursor: pointer;
+  width: 100%; text-align: left; font-family: inherit;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
 }
+.fin-report-doc:hover {
+  border-color: #C3D2E8; box-shadow: 0 8px 18px -12px rgba(27,44,79,.45); transform: translateY(-1px);
+}
+.fin-report-doc:focus-visible { outline: 2px solid #2D5F8B; outline-offset: 2px; }
 .fin-report-doc-icon { width: 38px; height: 38px; border-radius: 10px; background: #EAF1FB; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #2D5F8B; }
 .fin-report-doc-body { flex: 1; min-width: 0; }
-.fin-report-doc-name { font-size: 13.5px; font-weight: 600; color: #1B2C4F; }
-.fin-report-doc-desc { font-size: 11.5px; color: #9AA2B1; }
-.fin-report-doc-tag { font-size: 11px; font-weight: 700; color: #B4413B; background: #FBE9E9; padding: 3px 8px; border-radius: 6px; }
+.fin-report-doc-name { display: block; font-size: 13.5px; font-weight: 600; color: #1B2C4F; }
+.fin-report-doc-desc { display: block; font-size: 11.5px; color: #9AA2B1; }
+.fin-report-doc-tag { font-size: 11px; font-weight: 700; color: #B4413B; background: #FBE9E9; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
+
+/* Opción "Todo el historial" / "Un rango de fechas" del modal de reportes. */
+.fin-radio {
+  display: flex; align-items: center; gap: 8px; padding: 9px 11px; border: 1px solid #D7DDE8;
+  border-radius: 9px; margin-top: 6px; cursor: pointer;
+  font-size: 13px; font-weight: 500; color: #1B2C4F;
+}
+.fin-radio:has(input:checked) { border-color: #2D5F8B; background: #F4F8FD; font-weight: 600; }
+.fin-radio input { accent-color: #1B2C4F; margin: 0; }
+/* Las fechas quedan apagadas mientras el periodo sea "Todo el historial". */
+.fin-field:has(input:disabled) { color: #C3C9D6; }
+.fin-field input:disabled { background: #F4F6FA; color: #B6BECD; cursor: not-allowed; }
 
 /* ===== Selector de unidad del tablero (Todos / Intra / Academia) =====
    Control segmentado de enlaces, no un <select>: son tres opciones fijas y

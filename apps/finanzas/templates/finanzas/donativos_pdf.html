@@ -1,0 +1,134 @@
+{% load finanzas_extras static %}
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: letter landscape; margin: 1.2cm; }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 9pt; color: #1B2C4F; }
+  .encabezado { width: 100%; margin-bottom: 10px; }
+  .encabezado table { width: 100%; }
+  .encabezado img { height: 42px; }
+  .titulo { font-size: 15pt; font-weight: bold; }
+  .subtitulo { font-size: 8.5pt; color: #555; margin-top: 3px; }
+  table.fin-pdf-tabla { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
+  table.fin-pdf-tabla th {
+    background-color: #1B2C4F; color: #fff; text-align: left;
+    padding: 5px 6px; font-size: 8pt; word-wrap: break-word;
+  }
+  table.fin-pdf-tabla td {
+    padding: 5px 6px; border-bottom: 1px solid #E6EAF2; font-size: 8.5pt;
+    word-wrap: break-word; overflow-wrap: break-word;
+  }
+  table.fin-pdf-tabla td.num, table.fin-pdf-tabla th.num { text-align: right; }
+  /* Ver la nota del mismo archivo de Estado de resultados: una celda
+     literalmente vacia encoge su columna en xhtml2pdf. */
+  table.fin-pdf-tabla tr { page-break-inside: avoid; }
+  tr.cancelado td { color: #9AA2B1; text-decoration: line-through; }
+  tr.fila-total td { background-color: #F3F5FA; font-weight: bold; border-top: 2px solid #1B2C4F; font-size: 9.5pt; }
+  td.sin-folio { color: #B4413B; font-weight: bold; }
+  .fin-pdf-totales { width: 100%; margin-top: 14px; }
+  .fin-pdf-totales table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .fin-pdf-totales td {
+    background-color: #F3F5FA; padding: 8px; text-align: center; border: 1px solid #E6EAF2;
+  }
+  .fin-pdf-totales .label { display: block; font-size: 7.5pt; color: #555; margin-bottom: 3px; }
+  .fin-pdf-totales .valor { display: block; font-size: 11pt; font-weight: bold; }
+  .fin-pdf-pie { margin-top: 16px; font-size: 8pt; color: #888; }
+  .nota { margin-top: 10px; font-size: 8pt; color: #777; }
+</style>
+</head>
+<body>
+
+  <div class="encabezado">
+    <table>
+      <tr>
+        <td style="width: 60px;"><img src="{% static 'core/images/intra-logo.png' %}" alt="INTRA"></td>
+        <td>
+          <div class="titulo">Concentrado de donativos · CFDI emitidos</div>
+          <div class="subtitulo">
+            Periodo: {{ periodo_etiqueta }} · {{ datos.cuenta }} donativo{{ datos.cuenta|pluralize:"s" }} en la lista<br>
+            Generó: {{ usuario_genera.get_full_name|default:usuario_genera.username }}
+          </div>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <table class="fin-pdf-tabla">
+    <thead>
+      <tr>
+        <th style="width: 9%;">Fecha</th>
+        <th style="width: 28%;">Donante</th>
+        <th style="width: 12%;">RFC</th>
+        <th style="width: 11%;">Tipo</th>
+        <th class="num" style="width: 13%;">Monto</th>
+        <th style="width: 16%;">Folio CFDI</th>
+        <th style="width: 11%;">Estatus</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in datos.donativos %}
+      <tr{% if d.estatus_cfdi == 'cancelado' %} class="cancelado"{% endif %}>
+        <td>{{ d.fecha|date:'d/m/Y' }}</td>
+        <td>{{ d.donante_nombre }}</td>
+        <td>{{ d.donante_rfc|default:'—' }}</td>
+        <td>{{ d.get_tipo_display }}</td>
+        <td class="num">{{ d.monto|dinero }}</td>
+        {% if d.folio_cfdi %}
+        <td>{{ d.folio_cfdi }}</td>
+        {% else %}
+        <td class="sin-folio">Sin folio</td>
+        {% endif %}
+        <td>{{ d.get_estatus_cfdi_display }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7">No hay donativos capturados en este periodo.</td></tr>
+      {% endfor %}
+      {% if datos.donativos %}
+      <tr class="fila-total">
+        <td colspan="4">TOTAL VIGENTE Y EN TRÁMITE ({{ datos.cuenta_vigentes }})</td>
+        <td class="num">{{ datos.total|dinero }}</td>
+        <td colspan="2">&nbsp;</td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  <div class="fin-pdf-totales">
+    <table>
+      <tr>
+        <td>
+          <span class="label">Monetarios</span>
+          <span class="valor">{{ datos.total_monetario|dinero }}</span>
+        </td>
+        <td>
+          <span class="label">En especie</span>
+          <span class="valor">{{ datos.total_especie|dinero }}</span>
+        </td>
+        <td>
+          <span class="label">Cancelados (no suman)</span>
+          <span class="valor">{{ datos.total_cancelado|dinero }}</span>
+        </td>
+        <td>
+          <span class="label">Donantes distintos</span>
+          <span class="valor">{{ datos.donantes }}</span>
+        </td>
+        <td>
+          <span class="label">Sin folio CFDI</span>
+          <span class="valor">{{ datos.cuenta_sin_folio }}</span>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="nota">
+    Los donativos cancelados se listan tachados para poder auditar los CFDI
+    emitidos, pero no suman en ningún total. Los donativos son
+    institucionales: no pertenecen a Intra ni a Academia.
+  </div>
+
+  <div class="fin-pdf-pie">Generado el {{ generado_en|date:'d/m/Y H:i' }}</div>
+
+</body>
+</html>

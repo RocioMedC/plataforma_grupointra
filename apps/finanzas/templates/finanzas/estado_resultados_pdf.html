@@ -1,0 +1,158 @@
+{% load finanzas_extras static %}
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: letter portrait; margin: 1.5cm; }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 9pt; color: #1B2C4F; }
+  .encabezado { width: 100%; margin-bottom: 10px; }
+  .encabezado table { width: 100%; }
+  .encabezado img { height: 42px; }
+  .titulo { font-size: 15pt; font-weight: bold; }
+  .subtitulo { font-size: 8.5pt; color: #555; margin-top: 3px; }
+  table.fin-pdf-tabla { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
+  table.fin-pdf-tabla th {
+    background-color: #1B2C4F; color: #fff; text-align: left;
+    padding: 5px 6px; font-size: 8pt; word-wrap: break-word;
+  }
+  table.fin-pdf-tabla td {
+    padding: 6px; border-bottom: 1px solid #E6EAF2; font-size: 9pt;
+    word-wrap: break-word; overflow-wrap: break-word;
+  }
+  table.fin-pdf-tabla td.num, table.fin-pdf-tabla th.num { text-align: right; }
+  /* Ojo: una celda de esta tabla nunca debe quedar literalmente vacia. Con
+     <td></td> xhtml2pdf ignora el ancho declarado de esa columna, la encoge
+     al minimo y pinta los fondos de las filas fuera de la tabla. Por eso las
+     celdas sin dato llevan &nbsp;. */
+  table.fin-pdf-tabla tr { page-break-inside: avoid; }
+  tr.seccion td {
+    background-color: #F3F5FA; font-weight: bold; font-size: 9.5pt;
+    border-top: 1px solid #1B2C4F;
+  }
+  tr.subtotal td { font-weight: bold; background-color: #FAFBFD; }
+  tr.resultado td {
+    background-color: #1B2C4F; color: #fff; font-weight: bold; font-size: 11pt;
+  }
+  td.desglose { padding-left: 22px; color: #55607A; font-size: 8.5pt; }
+  .seccion-anexo { margin-top: 18px; font-size: 10pt; font-weight: bold; }
+  .fin-pdf-pie { margin-top: 16px; font-size: 8pt; color: #888; }
+  .nota { margin-top: 10px; font-size: 8pt; color: #777; }
+</style>
+</head>
+<body>
+
+  <div class="encabezado">
+    <table>
+      <tr>
+        <td style="width: 60px;"><img src="{% static 'core/images/intra-logo.png' %}" alt="INTRA"></td>
+        <td>
+          <div class="titulo">Estado de resultados</div>
+          <div class="subtitulo">
+            Periodo: {{ periodo_etiqueta }}<br>
+            Generó: {{ usuario_genera.get_full_name|default:usuario_genera.username }}
+          </div>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <table class="fin-pdf-tabla">
+    <thead>
+      <tr>
+        <th style="width: 70%;">Concepto</th>
+        <th class="num" style="width: 30%;">Importe</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="seccion"><td>INGRESOS</td><td class="num">&nbsp;</td></tr>
+      <tr>
+        <td>Servicios clínicos y educativos</td>
+        <td class="num">{{ datos.ingresos_servicios|dinero }}</td>
+      </tr>
+      <tr>
+        <td>Donativos</td>
+        <td class="num">{{ datos.donativos|dinero }}</td>
+      </tr>
+      <tr class="subtotal">
+        <td>Total ingresos</td>
+        <td class="num">{{ datos.total_ingresos|dinero }}</td>
+      </tr>
+
+      <tr class="seccion"><td>EGRESOS</td><td class="num">&nbsp;</td></tr>
+      <tr>
+        <td>Nómina administrativa</td>
+        <td class="num">{{ datos.nomina_admin|dinero }}</td>
+      </tr>
+      <tr>
+        <td>Nómina de terapeutas</td>
+        <td class="num">{{ datos.nomina_terapeutas|dinero }}</td>
+      </tr>
+      <tr>
+        <td>Nómina Academia</td>
+        <td class="num">{{ datos.nomina_academia|dinero }}</td>
+      </tr>
+      <tr>
+        <td>Renta y servicios</td>
+        <td class="num">{{ datos.renta|dinero }}</td>
+      </tr>
+      <tr>
+        <td>Insumos y operación</td>
+        <td class="num">{{ datos.insumos|dinero }}</td>
+      </tr>
+      <tr>
+        <td>Otros egresos</td>
+        <td class="num">{{ datos.otros|dinero }}</td>
+      </tr>
+      {% for o in datos.otros_detalle %}
+      <tr>
+        <td class="desglose">· {{ o.nombre }}</td>
+        <td class="num desglose">{{ o.total|dinero }}</td>
+      </tr>
+      {% endfor %}
+      <tr class="subtotal">
+        <td>Total egresos</td>
+        <td class="num">{{ datos.total_egresos|dinero }}</td>
+      </tr>
+
+      <tr class="resultado">
+        <td>RESULTADO DEL EJERCICIO</td>
+        <td class="num">{{ datos.resultado|dinero }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  {% if datos.ingresos_por_concepto %}
+  <div class="seccion-anexo">Anexo · Ingresos por concepto</div>
+  <table class="fin-pdf-tabla">
+    <thead>
+      <tr>
+        <th style="width: 70%;">Concepto</th>
+        <th class="num" style="width: 30%;">Cobrado</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in datos.ingresos_por_concepto %}
+      <tr>
+        <td>{{ c.nombre }}</td>
+        <td class="num">{{ c.total|dinero }}</td>
+      </tr>
+      {% endfor %}
+      <tr class="subtotal">
+        <td>Total servicios</td>
+        <td class="num">{{ datos.ingresos_servicios|dinero }}</td>
+      </tr>
+    </tbody>
+  </table>
+  {% endif %}
+
+  <div class="nota">
+    Se contabiliza únicamente dinero real: los ingresos Pagados (y de los
+    Parciales, solo lo cobrado), los donativos no cancelados y los egresos
+    Pagados. Lo que sigue Pendiente no aparece en este estado.
+  </div>
+
+  <div class="fin-pdf-pie">Generado el {{ generado_en|date:'d/m/Y H:i' }}</div>
+
+</body>
+</html>

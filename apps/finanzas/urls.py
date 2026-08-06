@@ -19,5 +19,8 @@ urlpatterns = [
     path('configuracion/', views.configuracion_view, name='configuracion'),
     path('donativos/', views.donativos_view, name='donativos'),
     path('reportes/', views.reportes_view, name='reportes'),
+    path('reportes/estado-resultados/', views.reporte_estado_resultados_view, name='reporte_estado_resultados'),
+    path('reportes/flujo-efectivo/', views.reporte_flujo_efectivo_view, name='reporte_flujo_efectivo'),
+    path('reportes/donativos/', views.reporte_donativos_view, name='reporte_donativos'),
     path('exportar/', views.exportar_view, name='exportar'),
 ]
