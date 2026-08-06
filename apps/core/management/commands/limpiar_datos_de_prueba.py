@@ -14,6 +14,7 @@ regresiva de verdad es `--confirmar`, y conviene correr antes un
 `dumpdata` porque esto no se puede deshacer.
 """
 
+from django.contrib.admin.models import LogEntry
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
@@ -47,6 +48,10 @@ EN_ORDEN = [
     ('Conceptos de ingreso (catálogo)', ConceptoIngreso),
     ('Categorías de egreso (catálogo)', CategoriaEgreso),
     ('Bitácora de auditoría', RegistroAuditoria),
+    # "Acciones recientes" de /admin/. No es dato de negocio, pero si se deja,
+    # el admin del sistema entregado abre la portada y ve una lista de
+    # movimientos de prueba que ya no existen.
+    ('Historial de acciones de /admin/', LogEntry),
 ]
 
 
