@@ -1,0 +1,138 @@
+{% extends 'certificacion_intera/_base.html' %}
+
+{% block titulo %}
+    {{ titulo_listado }}
+{% endblock %}
+
+{% block contenido %}
+    <section class="intera-card">
+        <div class="intera-card-head">
+            <div>
+                <h2>
+                    {{ titulo_listado }}
+                </h2>
+
+                <p>
+                    {{ descripcion_listado }}
+                </p>
+            </div>
+        </div>
+
+        {% if elementos %}
+            <div class="intera-table-wrap">
+                <table class="intera-table">
+                    <tbody>
+                        {% for elemento in elementos %}
+                            <tr>
+                                {% if tipo_listado == 'procesos' %}
+                                    <td>
+                                        <b>
+                                            {{ elemento.nombre }}
+                                        </b>
+
+                                        <small>
+                                            {{ elemento.escuela.nombre }} ·
+                                            {{ elemento.ciclo_escolar|default:'Sin ciclo escolar' }}
+                                        </small>
+                                    </td>
+
+                                    <td>
+                                        <a
+                                            href="{% url 'certificacion_intera:proceso_detalle' elemento.id %}"
+                                        >
+                                            Abrir
+                                        </a>
+                                    </td>
+
+                                {% elif tipo_listado == 'participantes' %}
+                                    <td>
+                                        <b>
+                                            {{ elemento.nombre }}
+                                        </b>
+
+                                        <small>
+                                            {{ elemento.proceso.escuela.nombre }}
+                                            · {{ elemento.proceso.nombre }}
+                                        </small>
+                                    </td>
+
+                                    <td>
+                                        <a
+                                            href="{% url 'certificacion_intera:participante_detalle' elemento.id %}"
+                                        >
+                                            Abrir
+                                        </a>
+                                    </td>
+
+                                {% elif tipo_listado == 'entrevistas' %}
+                                    <td>
+                                        <b>
+                                            {{ elemento.participante.nombre }}
+                                        </b>
+
+                                        <small>
+                                            {{ elemento.get_decision_display }}
+                                            · {{ elemento.fecha }}
+                                        </small>
+                                    </td>
+
+                                    <td>
+                                        <a
+                                            href="{% url 'certificacion_intera:participante_detalle' elemento.participante_id %}"
+                                        >
+                                            Abrir
+                                        </a>
+                                    </td>
+
+                                {% elif tipo_listado == 'seguimiento' %}
+                                    <td>
+                                        <b>
+                                            {{ elemento.participante.nombre }}
+                                        </b>
+
+                                        <small>
+                                            {{ elemento.get_estado_display }}
+                                            · {{ elemento.fecha }}
+                                        </small>
+                                    </td>
+
+                                    <td>
+                                        <a
+                                            href="{% url 'certificacion_intera:participante_detalle' elemento.participante_id %}"
+                                        >
+                                            Abrir
+                                        </a>
+                                    </td>
+
+                                {% else %}
+                                    <td>
+                                        <b>
+                                            {{ elemento.instrumento.nombre }}
+                                        </b>
+
+                                        <small>
+                                            {{ elemento.proceso.escuela.nombre }}
+                                            · {{ elemento.proceso.nombre }}
+                                        </small>
+                                    </td>
+
+                                    <td>
+                                        <a
+                                            href="{% url 'certificacion_intera:configuracion' elemento.proceso_id %}"
+                                        >
+                                            Abrir
+                                        </a>
+                                    </td>
+                                {% endif %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="intera-empty">
+                No hay registros disponibles todavía.
+            </div>
+        {% endif %}
+    </section>
+{% endblock %}

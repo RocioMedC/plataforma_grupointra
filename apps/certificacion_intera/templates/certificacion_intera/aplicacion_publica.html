@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width,initial-scale=1"
+    >
+
+    <title>
+        {{ instrumento.nombre }} | INTERA
+    </title>
+
+    <style>
+        body {
+            margin: 0;
+            background: #eef1f6;
+            color: #1b2c4f;
+            font: 16px Arial, sans-serif;
+        }
+
+        .box {
+            max-width: 720px;
+            margin: 48px auto;
+            background: #fff;
+            padding: 32px;
+            border-radius: 16px;
+        }
+
+        .question {
+            padding: 20px 0;
+            border-top: 1px solid #e6eaf2;
+        }
+
+        label {
+            display: block;
+            margin: 8px 0;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            padding: 9px;
+            border: 1px solid #d9dfeb;
+            border-radius: 6px;
+        }
+
+        input[type="radio"],
+        input[type="checkbox"] {
+            width: auto;
+        }
+
+        textarea {
+            min-height: 90px;
+        }
+
+        .btn {
+            background: #5b5fae;
+            color: #fff;
+            border: 0;
+            border-radius: 8px;
+            padding: 12px 18px;
+            font-weight: bold;
+        }
+
+        small {
+            color: #b4413b;
+        }
+    </style>
+</head>
+
+<body>
+    <main class="box">
+        {% if pantalla == 'gracias' %}
+            <h1>
+                Gracias por responder
+            </h1>
+
+            <p>
+                Tu información se registró correctamente.
+            </p>
+
+        {% elif pantalla == 'respondida' %}
+            <h1>
+                Este instrumento ya fue respondido
+            </h1>
+
+            <p>
+                Ya existe una respuesta para este número de alumno.
+            </p>
+
+        {% elif pantalla == 'inactiva' %}
+            <h1>
+                Aplicación inactiva
+            </h1>
+
+            <p>
+                Este enlace no está disponible para responder.
+            </p>
+
+        {% elif pantalla == 'no_abierta' %}
+            <h1>
+                Aplicación aún no abierta
+            </h1>
+
+            <p>
+                Podrás responder a partir del
+                {{ publica.fecha_apertura|date:'d/m/Y' }}.
+            </p>
+
+        {% elif pantalla == 'cerrada' %}
+            <h1>
+                Aplicación cerrada
+            </h1>
+
+            <p>
+                El periodo de respuesta ya finalizó.
+            </p>
+
+        {% elif pantalla == 'sin_preguntas' %}
+            <h1>
+                Instrumento sin preguntas
+            </h1>
+
+            <p>
+                La coordinadora debe completar el instrumento en Portafolio
+                antes de aplicarlo.
+            </p>
+
+        {% elif pantalla == 'cancelada' %}
+            <h1>
+                Este enlace fue cancelado
+            </h1>
+
+        {% elif pantalla == 'contexto_baremo' %}
+            <h1>
+                {{ instrumento.nombre }}
+            </h1>
+
+            <p>
+                Este dato se solicita únicamente para fines de baremación e
+                interpretación del instrumento.
+            </p>
+
+            <form method="post">
+                {% csrf_token %}
+
+                {% for field in form %}
+                    <label>
+                        {{ field.label }} *
+
+                        {{ field }}
+
+                        {% for error in field.errors %}
+                            <small>
+                                {{ error }}
+                            </small>
+                        {% endfor %}
+                    </label>
+                {% endfor %}
+
+                <button class="btn">
+                    Continuar
+                </button>
+            </form>
+
+        {% else %}
+            <h1>
+                {{ instrumento.nombre }}
+            </h1>
+
+            <p>
+                {{ instrumento.instrucciones }}
+            </p>
+
+            <form method="post">
+                {% csrf_token %}
+
+                {% if publica %}
+                    <section class="question">
+                        <strong>
+                            Datos de identificación
+                        </strong>
+
+                        {% if error %}
+                            <small>
+                                {{ error }}
+                            </small>
+                        {% endif %}
+
+                        <label>
+                            Nombre
+
+                            <input
+                                name="nombre"
+                                required
+                            >
+                        </label>
+
+                        <label>
+                            Número de alumno
+
+                            <input
+                                name="numero_alumno"
+                                required
+                            >
+                        </label>
+
+                        <label>
+                            Grupo
+
+                            <input name="grupo">
+                        </label>
+
+                        {% if solicitar_fecha_nacimiento %}
+                            <label>
+                                Fecha de nacimiento
+
+                                <input
+                                    type="date"
+                                    name="fecha_nacimiento"
+                                    required
+                                >
+                            </label>
+                        {% endif %}
+                    </section>
+                {% endif %}
+
+                {% if solicitar_sexo %}
+                    <section class="question">
+                        <strong>
+                            Dato para baremación
+                        </strong>
+
+                        <label>
+                            Sexo (requerido para baremos del instrumento)
+
+                            <select
+                                name="sexo"
+                                required
+                            >
+                                <option value="femenino">
+                                    Femenino
+                                </option>
+
+                                <option value="masculino">
+                                    Masculino
+                                </option>
+                            </select>
+                        </label>
+                    </section>
+                {% endif %}
+
+                {% for pregunta in preguntas %}
+                    <section class="question">
+                        <strong>
+                            {{ forloop.counter }}. {{ pregunta.texto }}
+
+                            {% if pregunta.requerida %}
+                                *
+                            {% endif %}
+                        </strong>
+
+                        {% if pregunta.id in faltantes %}
+                            <small>
+                                Esta respuesta es obligatoria.
+                            </small>
+                        {% endif %}
+
+                        {% if pregunta.tipo_respuesta == 'texto_libre' %}
+                            <textarea
+                                name="pregunta_{{ pregunta.id }}"
+                            ></textarea>
+                        {% else %}
+                            {% for opcion in pregunta.opciones %}
+                                <label>
+                                    <input
+                                        type="{% if pregunta.tipo_respuesta == 'opcion_multiple' %}checkbox{% else %}radio{% endif %}"
+                                        name="pregunta_{{ pregunta.id }}"
+                                        value="{{ opcion.valor }}"
+                                    >
+
+                                    {{ opcion.etiqueta }}
+                                </label>
+                            {% endfor %}
+                        {% endif %}
+                    </section>
+                {% endfor %}
+
+                <button class="btn">
+                    Enviar respuestas
+                </button>
+            </form>
+        {% endif %}
+    </main>
+</body>
+</html>

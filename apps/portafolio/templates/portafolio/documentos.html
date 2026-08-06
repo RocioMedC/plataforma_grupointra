@@ -1,0 +1,96 @@
+{% extends 'portafolio/_base.html' %}
+
+{% block titulo %}
+    Documentos
+{% endblock %}
+
+{% block contenido %}
+    <section class="card form">
+        <h2>Registrar documento</h2>
+
+        <form
+            method="post"
+            enctype="multipart/form-data"
+        >
+            {% csrf_token %}
+
+            {% for field in form %}
+                <label>{{ field.label }}{{ field }}</label>
+
+                {% for error in field.errors %}
+                    <small class="error">{{ error }}</small>
+                {% endfor %}
+            {% endfor %}
+
+            <button>Guardar documento</button>
+        </form>
+    </section>
+
+    <section class="card">
+        <form method="get">
+            <input
+                name="q"
+                value="{{ busqueda }}"
+                placeholder="Buscar documento"
+            >
+
+            <select name="categoria">
+                <option value="">
+                    Todas las categorías
+                </option>
+
+                {% for categoria in categorias %}
+                    <option
+                        value="{{ categoria.id }}"
+                        {% if categoria_actual == categoria.id|stringformat:'s' %}selected{% endif %}
+                    >
+                        {{ categoria.nombre }}
+                    </option>
+                {% endfor %}
+            </select>
+
+            <button>Filtrar</button>
+        </form>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Documento</th>
+                    <th>Categoría</th>
+                    <th>Versión</th>
+                    <th>Carga</th>
+                    <th></th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for item in items %}
+                    <tr>
+                        <td>
+                            <b>{{ item.nombre }}</b>
+                            <small>{{ item.tipo_archivo|upper }} · {{ item.get_estado_display }}</small>
+                        </td>
+
+                        <td>{{ item.categoria|default:'Sin categoría' }}</td>
+                        <td>{{ item.version }}</td>
+
+                        <td>
+                            {{ item.cargado_por|default:'—' }}
+                            <small>{{ item.creado_en|date:'d/m/Y H:i' }}</small>
+                        </td>
+
+                        <td>
+                            <a href="{{ item.archivo.url }}">
+                                Descargar
+                            </a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="5">Sin documentos.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}

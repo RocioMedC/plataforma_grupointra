@@ -1,0 +1,32 @@
+{% extends 'certificacion_intera/_base.html' %}
+
+{% block titulo %}
+    Enlace de aplicación
+{% endblock %}
+
+{% block contenido %}
+    <section class="intera-card intera-card-pad">
+        <h2>
+            Enlace listo para compartir
+        </h2>
+
+        <p>
+            Compártelo solo con {{ participante.nombre }}. No requiere cuenta
+            en Plataforma INTRA.
+        </p>
+
+        <input
+            class="intera-link"
+            readonly
+            value="{{ link }}"
+        >
+
+        <div class="intera-form-actions">
+            <a
+                href="{% url 'certificacion_intera:participante_detalle' participante.id %}"
+            >
+                Volver al expediente
+            </a>
+        </div>
+    </section>
+{% endblock %}

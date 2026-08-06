@@ -1,0 +1,94 @@
+{% extends 'portafolio/_base.html' %}
+
+{% block titulo %}
+    {{ titulo }}
+{% endblock %}
+
+{% block contenido %}
+    {% if messages %}
+        {% for message in messages %}
+            <p class="{% if message.tags == 'error' %}error{% endif %}">{{ message }}</p>
+        {% endfor %}
+    {% endif %}
+
+    <section class="card form">
+        <h2>Nuevo registro</h2>
+
+        <form
+            method="post"
+            enctype="multipart/form-data"
+        >
+            {% csrf_token %}
+
+            {% for field in form %}
+                <label>{{ field.label }}{{ field }}</label>
+
+                {% for error in field.errors %}
+                    <small class="error">{{ error }}</small>
+                {% endfor %}
+            {% endfor %}
+
+            <button>Guardar</button>
+        </form>
+    </section>
+
+    <section class="card">
+        <h2>Catálogo</h2>
+
+        <table>
+            <tbody>
+                {% for item in items %}
+                    <tr>
+                        <td>
+                            <b>{{ item }}</b>
+
+                            {% if item.descripcion %}
+                                <small>{{ item.descripcion }}</small>
+                            {% endif %}
+
+                            {% if es_instrumento %}
+                                <small>Documento origen: {% if item.documento_origen %}{{ item.documento_origen.nombre }}{% else %}sin documento{% endif %}</small>
+                                <small>Preguntas cargadas: {{ item.preguntas.count }}</small>
+                                <small>{% if item.activo and item.preguntas.count %}Listo para aplicarse{% elif not item.activo %}Instrumento inactivo{% else %}Sin preguntas; no disponible para INTERA{% endif %}</small>
+                            {% endif %}
+                        </td>
+
+                        {% if item.preguntas %}
+                            <td>
+                                <a href="{% url 'portafolio:preguntas' item.id %}">
+                                    Preguntas →
+                                </a>
+                            </td>
+                        {% endif %}
+
+                        {% if es_instrumento and item.documento_origen %}
+                            <td>
+                                <form
+                                    method="post"
+                                    action="{% url 'portafolio:importar_preguntas' item.id %}"
+                                >
+                                    {% csrf_token %}
+                                    <button type="submit">
+                                        Importar preguntas del Excel
+                                    </button>
+                                </form>
+                            </td>
+                        {% endif %}
+
+                        {% if item.archivo %}
+                            <td>
+                                <a href="{{ item.archivo.url }}">
+                                    Descargar
+                                </a>
+                            </td>
+                        {% endif %}
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td>Sin registros.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}

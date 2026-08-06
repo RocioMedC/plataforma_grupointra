@@ -1,0 +1,284 @@
+{% extends 'certificacion_intera/_base.html' %}
+
+{% block titulo %}
+    Ficha de la escuela
+{% endblock %}
+
+{% block contenido %}
+    <div class="intera-stack">
+        <div class="intera-crumbs">
+            <a href="{% url 'certificacion_intera:escuelas' %}">
+                Escuelas
+            </a>
+            /
+            {{ escuela.nombre }}
+        </div>
+
+        <p>
+            <a href="{{ return_url }}">
+                ← Volver a escuelas
+            </a>
+        </p>
+
+        <section class="intera-card intera-card-pad">
+            <div class="intera-card-head">
+                <div>
+                    <h1>
+                        {{ escuela.nombre }}
+                    </h1>
+
+                    <p>
+                        {{ escuela.municipio }}, {{ escuela.estado }}
+                    </p>
+                </div>
+
+                <div class="intera-header-actions">
+                    <a
+                        class="intera-btn"
+                        href="{% url 'certificacion_intera:escuela_editar' escuela.id %}?return_url={{ return_url|urlencode }}"
+                    >
+                        Editar escuela
+                    </a>
+
+                    <a
+                        class="intera-btn"
+                        href="{% url 'certificacion_intera:proceso_crear' escuela.id %}?return_url={{ return_url|urlencode }}"
+                    >
+                        Crear proceso
+                    </a>
+                </div>
+            </div>
+
+            <nav
+                class="intera-tabs"
+                aria-label="Secciones de la escuela"
+            >
+                <a
+                    href="?tab=resumen&return_url={{ return_url|urlencode }}"
+                    {% if tab == 'resumen' %}aria-current="page"{% endif %}
+                >
+                    Resumen
+                </a>
+
+                <a
+                    href="?tab=datos&return_url={{ return_url|urlencode }}"
+                    {% if tab == 'datos' %}aria-current="page"{% endif %}
+                >
+                    Datos institucionales
+                </a>
+
+                <a
+                    href="?tab=contactos&return_url={{ return_url|urlencode }}"
+                    {% if tab == 'contactos' %}aria-current="page"{% endif %}
+                >
+                    Contactos
+                </a>
+
+                <a
+                    href="?tab=procesos&return_url={{ return_url|urlencode }}"
+                    {% if tab == 'procesos' %}aria-current="page"{% endif %}
+                >
+                    Procesos
+                </a>
+
+                <a
+                    href="?tab=historial&return_url={{ return_url|urlencode }}"
+                    {% if tab == 'historial' %}aria-current="page"{% endif %}
+                >
+                    Historial
+                </a>
+            </nav>
+        </section>
+
+        {% if tab == 'resumen' %}
+            <div class="intera-kpi-grid">
+                <div class="intera-kpi">
+                    Capacidad estimada
+
+                    <strong>
+                        {{ escuela.cantidad_total_alumnos }}
+                    </strong>
+                </div>
+
+                <div class="intera-kpi">
+                    Participantes registrados
+
+                    <strong>
+                        {{ participantes_registrados }}
+                    </strong>
+                </div>
+
+                <div class="intera-kpi">
+                    Procesos activos
+
+                    <strong>
+                        {{ procesos_activos }}
+                    </strong>
+                </div>
+            </div>
+
+            <section class="intera-card intera-card-pad">
+                <h2>
+                    Resumen
+                </h2>
+
+                <dl class="intera-detail-list">
+                    <div>
+                        <dt>
+                            Director
+                        </dt>
+
+                        <dd>
+                            {{ escuela.director|default:'No registrado' }}
+                        </dd>
+                    </div>
+
+                    <div>
+                        <dt>
+                            Nivel educativo
+                        </dt>
+
+                        <dd>
+                            {{ escuela.nivel_educativo|default:'No disponible' }}
+                        </dd>
+                    </div>
+
+                    <div>
+                        <dt>
+                            Contacto principal
+                        </dt>
+
+                        <dd>
+                            {{ escuela.contacto|default:'No disponible' }}
+                        </dd>
+                    </div>
+
+                    <div>
+                        <dt>
+                            Estado
+                        </dt>
+
+                        <dd>
+                            {{ escuela.estado }}
+                        </dd>
+                    </div>
+                </dl>
+            </section>
+
+        {% elif tab == 'datos' %}
+            <section class="intera-card intera-card-pad">
+                <h2>
+                    Datos institucionales
+                </h2>
+
+                <dl class="intera-detail-list">
+                    <div>
+                        <dt>
+                            Nombre
+                        </dt>
+
+                        <dd>
+                            {{ escuela.nombre }}
+                        </dd>
+                    </div>
+
+                    <div>
+                        <dt>
+                            Director
+                        </dt>
+
+                        <dd>
+                            {{ escuela.director|default:'No registrado' }}
+                        </dd>
+                    </div>
+
+                    <div>
+                        <dt>
+                            Dirección
+                        </dt>
+
+                        <dd>
+                            {{ escuela.direccion|default:'Faltan datos de la institución.' }}
+                        </dd>
+                    </div>
+                </dl>
+            </section>
+
+        {% elif tab == 'contactos' %}
+            <section class="intera-card intera-card-pad">
+                <h2>
+                    Contacto principal
+                </h2>
+
+                <p>
+                    {{ escuela.contacto|default:'No disponible' }} ·
+                    {{ escuela.correo|default:'No disponible' }} ·
+                    {{ escuela.telefono|default:'No disponible' }}
+                </p>
+            </section>
+
+        {% elif tab == 'procesos' %}
+            <section class="intera-card">
+                <div class="intera-card-head">
+                    <h2>
+                        Procesos
+                    </h2>
+                </div>
+
+                {% for proceso in procesos %}
+                    <a
+                        class="intera-list-row"
+                        href="{% url 'certificacion_intera:proceso_detalle' proceso.id %}"
+                    >
+                        <span>
+                            <b>
+                                {{ proceso.nombre }}
+                            </b>
+
+                            <small>
+                                {{ proceso.ciclo_escolar }} ·
+                                {{ proceso.get_estado_display }}
+                            </small>
+                        </span>
+
+                        <time>
+                            Ver proceso →
+                        </time>
+                    </a>
+                {% empty %}
+                    <div class="intera-empty">
+                        No hay procesos registrados.
+                    </div>
+                {% endfor %}
+            </section>
+
+        {% else %}
+            <section class="intera-card">
+                <div class="intera-card-head">
+                    <h2>
+                        Historial
+                    </h2>
+                </div>
+
+                {% for evento in historial %}
+                    <div class="intera-list-row">
+                        <span>
+                            <b>
+                                {{ evento.evento }}
+                            </b>
+
+                            <small>
+                                {{ evento.usuario|default:'Sistema' }} ·
+                                {{ evento.creado_en|date:'d/m/Y H:i' }}
+                            </small>
+                        </span>
+                    </div>
+                {% empty %}
+                    <div class="intera-empty">
+                        No hay actividad institucional registrada.
+                    </div>
+                {% endfor %}
+            </section>
+        {% endif %}
+    </div>
+{% endblock %}

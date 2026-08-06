@@ -1,0 +1,63 @@
+{% extends 'certificacion_intera/_base.html' %}
+
+{% block titulo %}
+    {{ titulo_formulario }}
+{% endblock %}
+
+{% block contenido %}
+    <form
+        method="post"
+        class="intera-card intera-form"
+    >
+        {% csrf_token %}
+
+        <div class="intera-form-head">
+            <h2>
+                {{ titulo_formulario }}
+            </h2>
+
+            <p>
+                Los campos marcados con * son obligatorios.
+            </p>
+        </div>
+
+        <div class="intera-form-grid">
+            {% for field in form %}
+                <div
+                    class="intera-field{% if field.name == 'direccion' or field.name == 'observaciones' %} full{% endif %}"
+                >
+                    <label for="{{ field.id_for_label }}">
+                        {{ field.label }}
+
+                        {% if field.field.required %}
+                            *
+                        {% endif %}
+                    </label>
+
+                    {{ field }}
+
+                    {% for error in field.errors %}
+                        <small class="intera-error">
+                            {{ error }}
+                        </small>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="intera-form-actions">
+            <a
+                href="{% if escuela %}{% url 'certificacion_intera:escuela_detalle' escuela.id %}{% else %}{% url 'certificacion_intera:escuelas' %}{% endif %}"
+            >
+                Cancelar
+            </a>
+
+            <button
+                class="intera-btn"
+                type="submit"
+            >
+                Guardar escuela
+            </button>
+        </div>
+    </form>
+{% endblock %}

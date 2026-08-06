@@ -1,0 +1,111 @@
+{% extends 'certificacion_intera/_base.html' %}
+
+{% block titulo %}
+    Aplicaciones publicas
+{% endblock %}
+
+{% block contenido %}
+    <div class="intera-stack">
+        <p>
+            <a href="{% url 'certificacion_intera:proceso_detalle' proceso.id %}">
+                ← Volver al proceso
+            </a>
+        </p>
+
+        <section class="intera-card intera-card-pad">
+            <h1>
+                Aplicaciones publicas
+            </h1>
+
+            <p>
+                {{ proceso.nombre }} · {{ proceso.escuela.nombre }}
+            </p>
+        </section>
+
+        {% for tarjeta in tarjetas %}
+            <section class="intera-card intera-card-pad">
+                <h2>
+                    {{ tarjeta.configuracion.instrumento.nombre }}
+                </h2>
+
+                <p>
+                    {{ tarjeta.configuracion.get_estado_display }} ·
+                    Inicio
+                    {{ tarjeta.configuracion.fecha_inicio|date:'d/m/Y'|default:'sin fecha' }}
+                    · Cierre
+                    {{ tarjeta.configuracion.fecha_cierre|date:'d/m/Y'|default:'sin fecha' }}
+                </p>
+
+                <p>
+                    {{ tarjeta.participantes }} participantes ·
+                    {{ tarjeta.respondidos }} respondidos ·
+                    {{ tarjeta.pendientes }} pendientes
+                </p>
+
+                <input
+                    id="publica-{{ tarjeta.configuracion.id }}"
+                    readonly
+                    value="{{ tarjeta.url }}"
+                    style="width:100%;box-sizing:border-box;margin:14px 0;padding:9px"
+                >
+
+                <p>
+                    <a
+                        class="intera-btn"
+                        href="{{ tarjeta.url }}"
+                        target="_blank"
+                        rel="noopener"
+                    >
+                        Abrir enlace
+                    </a>
+
+                    <button
+                        class="intera-btn"
+                        type="button"
+                        data-copy="publica-{{ tarjeta.configuracion.id }}"
+                    >
+                        Copiar enlace
+                    </button>
+
+                    <a
+                        href="{% url 'certificacion_intera:proceso_detalle' proceso.id %}#resultados"
+                    >
+                        Ver respuestas
+                    </a>
+
+                    <small>
+                        · QR proximo
+                    </small>
+                </p>
+            </section>
+        {% empty %}
+            <section class="intera-card intera-card-pad">
+                <p>
+                    No hay instrumentos configurados.
+
+                    <a href="{% url 'certificacion_intera:configuracion' proceso.id %}">
+                        Configurar instrumento
+                    </a>.
+                </p>
+            </section>
+        {% endfor %}
+    </div>
+
+    <script>
+        document
+            .querySelectorAll('[data-copy]')
+            .forEach(function (button) {
+                button.addEventListener('click', function () {
+                    var input = document.getElementById(
+                        button.dataset.copy
+                    );
+
+                    navigator.clipboard
+                        .writeText(input.value)
+                        .then(function () {
+                            button.textContent = 'Enlace copiado';
+                        });
+                });
+            });
+    </script>
+{% endblock %}

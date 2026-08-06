@@ -1,0 +1,83 @@
+{% extends 'certificacion_intera/_base.html' %}
+
+{% block titulo %}
+    Resultado de instrumento
+{% endblock %}
+
+{% block contenido %}
+    <div class="intera-stack">
+        <section class="intera-card intera-card-pad">
+            <h2>
+                {{ aplicacion.instrumento.nombre }}
+            </h2>
+
+            <p>
+                {{ aplicacion.participante.nombre }} ·
+                {{ aplicacion.participante.proceso.escuela.nombre }}
+            </p>
+
+            {% if aplicacion.interpretacion %}
+                <p>
+                    <b>
+                        Puntaje:
+                    </b>
+
+                    {{ aplicacion.puntaje_total }}
+                </p>
+
+                <p>
+                    {{ aplicacion.interpretacion }}
+                </p>
+
+                {% if revision_resultado.requiere_revision_profesional %}
+                    <p class="intera-message">
+                        {{ revision_resultado.advertencia_larga }}
+                    </p>
+                {% endif %}
+
+                {% if advertencia_prioritaria %}
+                    <p class="intera-message">
+                        {{ advertencia_prioritaria }}
+                    </p>
+                {% endif %}
+            {% else %}
+                <p class="intera-muted">
+                    Este instrumento aún no cuenta con una calculadora
+                    automática; sus respuestas quedan disponibles para
+                    valoración profesional.
+                </p>
+            {% endif %}
+        </section>
+
+        <section class="intera-card">
+            <div class="intera-card-head">
+                <div>
+                    <h2>
+                        Respuestas registradas
+                    </h2>
+                </div>
+            </div>
+
+            <div class="intera-list">
+                {% for respuesta in respuestas %}
+                    <div class="intera-list-row">
+                        <span>
+                            <b>
+                                {{ respuesta.pregunta.orden }}.
+                                {{ respuesta.pregunta.texto }}
+                            </b>
+
+                            <small>
+                                {{ respuesta.valor }}
+                            </small>
+                        </span>
+                    </div>
+                {% empty %}
+                    <div class="intera-empty">
+                        No hay respuestas.
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+{% endblock %}

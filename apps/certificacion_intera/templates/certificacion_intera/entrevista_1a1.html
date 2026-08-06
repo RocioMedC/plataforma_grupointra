@@ -1,0 +1,307 @@
+{% extends 'certificacion_intera/_base.html' %}
+
+{% block titulo %}
+    Entrevista 1:1
+{% endblock %}
+
+{% block contenido %}
+    <div class="intera-stack">
+        <p>
+            <a
+                href="{% url 'certificacion_intera:participante_detalle' participante.id %}"
+            >
+                ← Volver al participante
+            </a>
+        </p>
+
+        <section class="intera-card intera-card-pad">
+            <h1>
+                Entrevista 1:1 · {{ participante.nombre }}
+            </h1>
+
+            <p>
+                Estado: <b>{{ entrevista.get_estado_display }}</b> ·
+                Revisión {{ entrevista.revision_actual }}
+            </p>
+
+            {% if entrevista.estado == 'finalizada' and puede_reabrir %}
+                <form
+                    method="post"
+                    action="{% url 'certificacion_intera:entrevista_1a1_reabrir' participante.id %}"
+                    class="intera-reopen-form"
+                >
+                    {% csrf_token %}
+
+                    <label>
+                        Justificación de reapertura
+
+                        <input
+                            name="justificacion"
+                            required
+                        >
+                    </label>
+
+                    <button
+                        class="intera-btn"
+                        type="submit"
+                    >
+                        Reabrir
+                    </button>
+                </form>
+            {% endif %}
+
+            {% if puede_historial %}
+                <details>
+                    <summary>
+                        Historial
+                    </summary>
+
+                    {% for h in entrevista.historial.all %}
+                        <p>
+                            {{ h.creado_en|date:'d/m/Y H:i' }} ·
+                            {{ h.evento }}{% if h.justificacion %}: {{ h.justificacion }}{% endif %}
+                        </p>
+                    {% endfor %}
+                </details>
+            {% endif %}
+        </section>
+
+        <form
+            method="post"
+            class="intera-stack"
+            id="entrevista-1a1-form"
+        >
+            {% csrf_token %}
+
+            {% for seccion in secciones %}
+                <section class="intera-card intera-card-pad">
+                    <h2>
+                        {{ seccion.nombre }}
+                    </h2>
+
+                    {% if seccion.descripcion %}
+                        <p>
+                            {{ seccion.descripcion }}
+                        </p>
+                    {% endif %}
+
+                    <div class="intera-question-list">
+                        {% for pregunta in seccion.preguntas %}
+                            <div
+                                class="intera-question"
+                                {% if pregunta.condicion_visibilidad %}
+                                    data-depends-on="{{ pregunta.condicion_visibilidad.pregunta_clave }}"
+                                    data-depends-value="{{ pregunta.condicion_visibilidad.valor }}"
+                                {% endif %}
+                            >
+                                <label for="id_pregunta_{{ pregunta.clave }}">
+                                    {{ pregunta.orden }}. {{ pregunta.texto }}
+
+                                    {% if pregunta.requerida %}
+                                        <span aria-label="obligatoria">*</span>
+                                    {% endif %}
+                                </label>
+
+                                {% if pregunta.tipo == 'texto_libre' %}
+                                    <textarea
+                                        id="id_pregunta_{{ pregunta.clave }}"
+                                        name="pregunta_{{ pregunta.clave }}"
+                                        rows="5"
+                                        {% if pregunta.requerida %}required{% endif %}
+                                        {% if entrevista.estado == 'finalizada' %}readonly{% endif %}
+                                    >{{ pregunta.respuesta }}</textarea>
+
+                                {% elif pregunta.tipo == 'texto_corto' %}
+                                    <input
+                                        id="id_pregunta_{{ pregunta.clave }}"
+                                        type="text"
+                                        name="pregunta_{{ pregunta.clave }}"
+                                        value="{{ pregunta.respuesta }}"
+                                        {% if pregunta.requerida %}required{% endif %}
+                                        {% if entrevista.estado == 'finalizada' %}readonly{% endif %}
+                                    >
+
+                                {% elif pregunta.tipo == 'escala' %}
+                                    <input
+                                        id="id_pregunta_{{ pregunta.clave }}"
+                                        type="number"
+                                        name="pregunta_{{ pregunta.clave }}"
+                                        value="{{ pregunta.respuesta }}"
+                                        min="1"
+                                        max="10"
+                                        step="1"
+                                        {% if pregunta.requerida %}required{% endif %}
+                                        {% if entrevista.estado == 'finalizada' %}readonly{% endif %}
+                                    >
+
+                                {% elif pregunta.tipo == 'si_no' %}
+                                    <div class="intera-radio-group">
+                                        {% for opcion in pregunta.opciones %}
+                                            <label class="intera-radio">
+                                                <input
+                                                    type="radio"
+                                                    name="pregunta_{{ pregunta.clave }}"
+                                                    value="{{ opcion.valor }}"
+                                                    {% if pregunta.respuesta == opcion.valor %}checked{% endif %}
+                                                    {% if pregunta.requerida %}required{% endif %}
+                                                    {% if entrevista.estado == 'finalizada' %}disabled{% endif %}
+                                                >
+
+                                                <span>
+                                                    {{ opcion.etiqueta }}
+                                                </span>
+                                            </label>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                </section>
+            {% endfor %}
+
+            {% if entrevista.estado != 'finalizada' %}
+                <div class="intera-form-actions">
+                    <button
+                        class="intera-btn intera-btn-secondary"
+                        name="accion"
+                        value="borrador"
+                    >
+                        Guardar borrador
+                    </button>
+
+                    {% if puede_finalizar %}
+                        <button
+                            class="intera-btn"
+                            name="accion"
+                            value="finalizar"
+                        >
+                            Finalizar entrevista
+                        </button>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </form>
+    </div>
+
+    <style>
+        .intera-question-list {
+            display: grid;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .intera-question {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .intera-question > label,
+        .intera-reopen-form > label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #4a5568;
+            line-height: 1.45;
+        }
+
+        .intera-question input[type="text"],
+        .intera-question input[type="number"],
+        .intera-question textarea,
+        .intera-reopen-form input {
+            width: 100%;
+            padding: 10px 11px;
+            border: 1px solid #d9dfeb;
+            border-radius: 8px;
+            font: 13px 'Work Sans', sans-serif;
+            color: #1b2c4f;
+        }
+
+        .intera-question textarea {
+            min-height: 130px;
+            resize: vertical;
+            line-height: 1.5;
+        }
+
+        .intera-radio-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .intera-radio {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 13px;
+            border: 1px solid #d9dfeb;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .intera-radio:has(input:checked) {
+            border-color: #5b5fae;
+            background: #ebecfa;
+        }
+
+        .intera-reopen-form {
+            display: flex;
+            align-items: end;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .intera-reopen-form > label {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+    </style>
+
+    <script>
+        (() => {
+            const form = document.getElementById('entrevista-1a1-form');
+
+            if (!form) return;
+
+            const sync = () => {
+                document
+                    .querySelectorAll('[data-depends-on]')
+                    .forEach((block) => {
+                        const source = form.querySelector(
+                            `[name="pregunta_${block.dataset.dependsOn}"]:checked`
+                        );
+
+                        const show =
+                            source &&
+                            source.value === block.dataset.dependsValue;
+
+                        block.hidden = !show;
+
+                        block
+                            .querySelectorAll('input, textarea')
+                            .forEach((field) => {
+                                field.required =
+                                    show &&
+                                    !!block.querySelector(
+                                        '[aria-label="obligatoria"]'
+                                    );
+
+                                if (!show) {
+                                    if (field.type === 'radio') {
+                                        field.checked = false;
+                                    } else {
+                                        field.value = '';
+                                    }
+                                }
+                            });
+                    });
+            };
+
+            form.addEventListener('change', sync);
+            sync();
+        })();
+    </script>
+{% endblock %}

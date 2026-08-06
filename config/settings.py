@@ -16,6 +16,7 @@ from pathlib import Path
 
 import dj_database_url
 
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -33,7 +34,12 @@ SECRET_KEY = os.environ.get(
 DEBUG = os.environ.get(
     'DEBUG',
     'False' if os.environ.get('RAILWAY_ENVIRONMENT') else 'True',
-).lower() in {'1', 'true', 'yes', 'on'}
+).lower() in {
+    '1',
+    'true',
+    'yes',
+    'on',
+}
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -44,9 +50,14 @@ ALLOWED_HOSTS = [
     if host.strip()
 ]
 
-RAILWAY_PUBLIC_DOMAIN = os.environ.get('RAILWAY_PUBLIC_DOMAIN')
+RAILWAY_PUBLIC_DOMAIN = os.environ.get(
+    'RAILWAY_PUBLIC_DOMAIN'
+)
+
 if RAILWAY_PUBLIC_DOMAIN:
-    ALLOWED_HOSTS.append(RAILWAY_PUBLIC_DOMAIN)
+    ALLOWED_HOSTS.append(
+        RAILWAY_PUBLIC_DOMAIN
+    )
 
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
@@ -56,17 +67,26 @@ CSRF_TRUSTED_ORIGINS = [
     ).split(',')
     if origin.strip()
 ]
+
 if RAILWAY_PUBLIC_DOMAIN:
-    CSRF_TRUSTED_ORIGINS.append(f'https://{RAILWAY_PUBLIC_DOMAIN}')
+    CSRF_TRUSTED_ORIGINS.append(
+        f'https://{RAILWAY_PUBLIC_DOMAIN}'
+    )
 
 
 # Application definition
 
 INSTALLED_APPS = [
-     # Núcleo del portal: acceso de usuarios, autenticación y permisos.
+    # Núcleo del portal: acceso de usuarios, autenticación y permisos.
     'apps.core',
     # Módulo de Finanzas: ingresos, egresos, nómina, donativos y reportes.
     'apps.finanzas',
+
+    'apps.portafolio',
+
+    # Módulo de Certificación INTERA: proceso de certificación escolar.
+    'apps.certificacion_intera',
+
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -93,14 +113,20 @@ ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'BACKEND': (
+            'django.template.backends.django.'
+            'DjangoTemplates'
+        ),
         'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+                (
+                    'django.contrib.messages.context_processors.'
+                    'messages'
+                ),
             ],
         },
     },
@@ -112,21 +138,24 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASE_URL = os.environ.get('DATABASE_URL')
+DATABASE_URL = os.environ.get(
+    'DATABASE_URL'
+)
+
 if DATABASE_URL:
     DATABASES = {
         'default': dj_database_url.parse(
             DATABASE_URL,
             conn_max_age=600,
             conn_health_checks=True,
-        )
+        ),
     }
 else:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
-        }
+        },
     }
 
 
@@ -135,28 +164,50 @@ else:
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        'NAME': (
+            'django.contrib.auth.password_validation.'
+            'UserAttributeSimilarityValidator'
+        ),
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'NAME': (
+            'django.contrib.auth.password_validation.'
+            'MinimumLengthValidator'
+        ),
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        'NAME': (
+            'django.contrib.auth.password_validation.'
+            'CommonPasswordValidator'
+        ),
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        'NAME': (
+            'django.contrib.auth.password_validation.'
+            'NumericPasswordValidator'
+        ),
     },
 ]
 
-#Pendiente por configurar el correo institucional para enviar correos de recuperación de contraseña.
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+
+# Pendiente por configurar el correo institucional para enviar correos
+# de recuperación de contraseña.
+EMAIL_BACKEND = (
+    'django.core.mail.backends.smtp.EmailBackend'
+)
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'tu-correo-institucional@ejemplo.com'
-EMAIL_HOST_PASSWORD = 'tu-app-password' # Nota: se genera en la seguridad de Google#
+EMAIL_HOST_USER = (
+    'tu-correo-institucional@ejemplo.com'
+)
+EMAIL_HOST_PASSWORD = 'tu-app-password'
+# Nota: se genera en la seguridad de Google
 
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_BACKEND = (
+    'django.core.mail.backends.console.EmailBackend'
+)
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
@@ -181,24 +232,44 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
 STORAGES = {
     'default': {
-        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        'BACKEND': (
+            'django.core.files.storage.'
+            'FileSystemStorage'
+        ),
     },
     'staticfiles': {
-        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+        'BACKEND': (
+            'whitenoise.storage.'
+            'CompressedManifestStaticFilesStorage'
+        ),
     },
 }
 
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_PROXY_SSL_HEADER = (
+    'HTTP_X_FORWARDED_PROTO',
+    'https',
+)
+
 SECURE_SSL_REDIRECT = os.environ.get(
     'SECURE_SSL_REDIRECT',
     str(not DEBUG),
-).lower() in {'1', 'true', 'yes', 'on'}
-SECURE_HSTS_SECONDS = int(os.environ.get(
-    'SECURE_HSTS_SECONDS',
-    '0' if DEBUG else '3600',
-))
+).lower() in {
+    '1',
+    'true',
+    'yes',
+    'on',
+}
+
+SECURE_HSTS_SECONDS = int(
+    os.environ.get(
+        'SECURE_HSTS_SECONDS',
+        '0' if DEBUG else '3600',
+    )
+)
+
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 
@@ -247,26 +318,73 @@ LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 
 # Reemplaza la página "403 Forbidden" en blanco que Django muestra cuando un
-# formulario se rechaza por CSRF (el caso reportado: usar "atrás" del
-# navegador para volver a una pantalla vieja y reenviarla) por una página que
-# explica qué pasó y ofrece un botón para reintentar. Ver
-# apps/core/views.py::csrf_failure_view.
+# formulario se rechaza por CSRF por una página explicativa.
 CSRF_FAILURE_VIEW = 'apps.core.views.csrf_failure_view'
 
-# Archivos subidos por el usuario (ej. XML/PDF de CFDI de donativos).
+# Archivos subidos por el usuario.
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Integración con ConsultorioWeb (importación de nómina semanal sellada,
-# apps/finanzas/integraciones/). Sin valor por defecto a propósito: si falta
-# configurar la variable en Railway, la integración debe fallar de forma
-# ruidosa en vez de intentar conectarse a algo adivinado.
-CONSULTORIOWEB_API_URL = os.environ.get('CONSULTORIOWEB_API_URL', '')
-CONSULTORIOWEB_API_KEY = os.environ.get('CONSULTORIOWEB_API_KEY', '')
-# Segundos de espera por llamada. Holgado a propósito: ese servicio se
-# duerme cuando no se usa y la primera llamada paga el arranque en frío
-# (ya despierto contesta en menos de 5s hasta para un año de citas).
-CONSULTORIOWEB_TIMEOUT = int(os.environ.get('CONSULTORIOWEB_TIMEOUT', '45'))
 
+# Integración con ConsultorioWeb usada por Finanzas.
+CONSULTORIOWEB_API_URL = os.environ.get(
+    'CONSULTORIOWEB_API_URL',
+    '',
+)
+
+# API key compartida con las integraciones que consumen ConsultorioWeb.
+CONSULTORIOWEB_API_KEY = os.environ.get(
+    'CONSULTORIOWEB_API_KEY',
+    '',
+)
+
+CONSULTORIOWEB_TIMEOUT = int(
+    os.environ.get(
+        'CONSULTORIOWEB_TIMEOUT',
+        '45',
+    )
+)
+
+
+# Integración de Certificación INTERA con ConsultorioWeb.
+CONSULTORIOWEB_INTEGRATION_ENABLED = os.environ.get(
+    'CONSULTORIOWEB_INTEGRATION_ENABLED',
+    'False',
+).lower() == 'true'
+
+CONSULTORIOWEB_API_BASE_URL = os.environ.get(
+    'CONSULTORIOWEB_API_BASE_URL',
+    '',
+).rstrip('/')
+
+CONSULTORIOWEB_API_TIMEOUT = int(
+    os.environ.get(
+        'CONSULTORIOWEB_API_TIMEOUT',
+        '10',
+    )
+)
+
+
+# Protección de acceso privado para la entrevista 1:1.
+ENTREVISTA_1A1_MAX_INTENTOS = int(
+    os.environ.get(
+        'ENTREVISTA_1A1_MAX_INTENTOS',
+        '5',
+    )
+)
+
+ENTREVISTA_1A1_VENTANA_INTENTOS_MINUTOS = int(
+    os.environ.get(
+        'ENTREVISTA_1A1_VENTANA_INTENTOS_MINUTOS',
+        '40',
+    )
+)
+
+ENTREVISTA_1A1_AUTORIZACION_MINUTOS = int(
+    os.environ.get(
+        'ENTREVISTA_1A1_AUTORIZACION_MINUTOS',
+        '40',
+    )
+)

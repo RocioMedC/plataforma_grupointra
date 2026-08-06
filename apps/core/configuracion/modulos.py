@@ -23,6 +23,20 @@ MODULOS = [
         'url_name': 'finanzas:tablero',
     },
     {
+        'key': 'certificacion_intera', 'nombre': 'Certificación INTERA',
+        'descripcion': 'Gestión del proceso de certificación de escuelas.',
+        'accent': '#5B5FAE', 'tint': '#EBECFA',
+        'construido': True, 'grupos': ('Certificación', 'Dirección', 'Sistemas'),
+        'url_name': 'certificacion_intera:dashboard',
+    },
+    {
+        'key': 'portafolio', 'nombre': 'Portafolio INTRA',
+        'descripcion': 'Recursos institucionales compartidos.',
+        'accent': '#5B5FAE', 'tint': '#EBECFA',
+        'construido': True, 'grupos': ('Certificación', 'Dirección', 'Sistemas'),
+        'url_name': 'portafolio:dashboard',
+    },
+    {
         'key': 'orbitaedu', 'nombre': 'OrbitaEdu',
         'descripcion': 'Plataforma educativa institucional.',
         'accent': '#2A9D9D', 'tint': '#E2F1F1',

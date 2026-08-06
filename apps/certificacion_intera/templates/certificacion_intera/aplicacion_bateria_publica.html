@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width,initial-scale=1"
+    >
+
+    <title>Aplicación INTERA</title>
+
+    <style>
+        body {
+            margin: 0;
+            background: #eef1f6;
+            color: #1b2c4f;
+            font: 16px Arial, sans-serif;
+        }
+
+        .box {
+            max-width: 720px;
+            margin: 48px auto;
+            background: #fff;
+            padding: 32px;
+            border-radius: 16px;
+        }
+
+        .field {
+            margin: 14px 0;
+        }
+
+        .field label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .field input,
+        .field select {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 10px;
+            border: 1px solid #d9dfeb;
+            border-radius: 7px;
+        }
+
+        .field input[type="radio"] {
+            width: auto;
+        }
+
+        .question {
+            padding: 16px 0;
+            border-top: 1px solid #e6eaf2;
+        }
+
+        .question label {
+            display: block;
+            margin: 8px 0;
+        }
+
+        .question input {
+            width: auto;
+        }
+
+        .btn {
+            background: #5b5fae;
+            color: #fff;
+            border: 0;
+            border-radius: 8px;
+            padding: 12px 18px;
+            font-weight: bold;
+        }
+
+        .error {
+            color: #b4413b;
+        }
+
+        .context {
+            color: #66758c;
+        }
+    </style>
+</head>
+
+<body>
+    <main class="box">
+        {% if pantalla == 'inactiva' %}
+            <h1>
+                Esta aplicación ya no se encuentra disponible.
+            </h1>
+
+        {% elif pantalla == 'gracias' %}
+            <h1>
+                Gracias. Tus respuestas fueron guardadas correctamente.
+            </h1>
+
+            <p>
+                El siguiente paso es la Entrevista 1:1 con una persona de
+                Coordinación INTERA. Coordinación te informará la fecha y la
+                modalidad.
+            </p>
+
+        {% elif pantalla == 'datos' %}
+            <h1>
+                Datos generales
+            </h1>
+
+            <p>
+                Completa tus datos para iniciar o continuar la batería de
+                evaluación.
+            </p>
+
+            <p class="context">
+                {{ proceso.escuela.nombre }} · {{ proceso.nombre }}
+            </p>
+
+            {% if form.non_field_errors %}
+                <p class="error">
+                    {{ form.non_field_errors }}
+                </p>
+            {% endif %}
+
+            <form method="post">
+                {% csrf_token %}
+
+                {% for field in form %}
+                    <div class="field">
+                        <label for="{{ field.id_for_label }}">
+                            {{ field.label }}
+                            {% if field.field.required %}
+                                *
+                            {% endif %}
+                        </label>
+
+                        {{ field }}
+
+                        {% for error in field.errors %}
+                            <small class="error">
+                                {{ error }}
+                            </small>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+
+                <button class="btn">
+                    Continuar
+                </button>
+            </form>
+
+        {% elif pantalla == 'contexto_baremo' %}
+            <p class="context">
+                Evaluación {{ indice }} de {{ total }}
+            </p>
+
+            <h1>
+                {{ instrumento.nombre }}
+            </h1>
+
+            <p>
+                Antes de continuar, necesitamos este dato únicamente para la
+                interpretación del instrumento.
+            </p>
+
+            <form method="post">
+                {% csrf_token %}
+
+                {% for field in form %}
+                    <div class="field">
+                        <label>
+                            {{ field.label }} *
+                        </label>
+
+                        {{ field }}
+
+                        {% for error in field.errors %}
+                            <small class="error">
+                                {{ error }}
+                            </small>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+
+                <button class="btn">
+                    Continuar
+                </button>
+            </form>
+
+        {% elif pantalla == 'instrucciones' %}
+            <p class="context">
+                Evaluación {{ indice }} de {{ total }}
+            </p>
+
+            <h1>
+                {{ instrumento.nombre }}
+            </h1>
+
+            <p>
+                {{ instrumento.instrucciones }}
+            </p>
+
+            <form method="post">
+                {% csrf_token %}
+
+                <input
+                    type="hidden"
+                    name="accion"
+                    value="comenzar"
+                >
+
+                <button class="btn">
+                    Comenzar evaluación
+                </button>
+            </form>
+
+        {% elif pantalla == 'preguntas' %}
+            <p class="context">
+                Evaluación {{ indice }} de {{ total }}
+            </p>
+
+            <h1>
+                {{ instrumento.nombre }}
+            </h1>
+
+            {% if error %}
+                <p class="error">
+                    {{ error }}
+                </p>
+            {% endif %}
+
+            <form method="post">
+                {% csrf_token %}
+
+                <input
+                    type="hidden"
+                    name="accion"
+                    value="responder"
+                >
+
+                {% for pregunta in preguntas %}
+                    <section class="question">
+                        <strong>
+                            {{ forloop.counter }}. {{ pregunta.texto }}
+
+                            {% if pregunta.requerida %}
+                                *
+                            {% endif %}
+                        </strong>
+
+                        {% if pregunta.id in faltantes %}
+                            <small class="error">
+                                Esta respuesta es obligatoria.
+                            </small>
+                        {% endif %}
+
+                        {% if pregunta.tipo_respuesta == 'texto_libre' %}
+                            <textarea
+                                name="pregunta_{{ pregunta.id }}"
+                            ></textarea>
+                        {% else %}
+                            {% for opcion in pregunta.opciones %}
+                                <label>
+                                    <input
+                                        type="{% if pregunta.tipo_respuesta == 'opcion_multiple' %}checkbox{% else %}radio{% endif %}"
+                                        name="pregunta_{{ pregunta.id }}"
+                                        value="{{ opcion.valor }}"
+                                    >
+
+                                    {{ opcion.etiqueta }}
+                                </label>
+                            {% endfor %}
+                        {% endif %}
+                    </section>
+                {% endfor %}
+
+                <button class="btn">
+                    Continuar
+                </button>
+            </form>
+
+        {% else %}
+            <h1>
+                Revisión final
+            </h1>
+
+            <p>
+                Completaste {{ total }} instrumentos. Tus respuestas se
+                enviarán definitivamente al confirmar.
+            </p>
+
+            {% if error %}
+                <p class="error">
+                    {{ error }}
+                </p>
+            {% endif %}
+
+            <p>
+                <a
+                    href="https://intra.org.mx/aviso-de-privacidad/"
+                    target="_blank"
+                    rel="noopener"
+                >
+                    Aviso de privacidad
+                </a>
+            </p>
+
+            <form method="post">
+                {% csrf_token %}
+
+                <label>
+                    <input
+                        type="checkbox"
+                        name="privacidad"
+                        value="acepto"
+                    >
+
+                    He leído y acepto el aviso de privacidad.
+                </label>
+
+                <input
+                    type="hidden"
+                    name="accion"
+                    value="enviar"
+                >
+
+                <p>
+                    <button class="btn">
+                        Enviar respuestas
+                    </button>
+                </p>
+            </form>
+        {% endif %}
+    </main>
+</body>
+</html>

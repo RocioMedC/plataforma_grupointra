@@ -1,0 +1,35 @@
+{% extends 'certificacion_intera/_base.html' %}
+
+{% block titulo %}
+    Eliminar participante
+{% endblock %}
+
+{% block contenido %}
+    <section class="intera-card intera-card-pad">
+        <h2>
+            Confirmar eliminación
+        </h2>
+
+        <p>
+            ¿Deseas eliminar a {{ objeto }}? También se eliminarán sus
+            registros asociados.
+        </p>
+
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="intera-form-actions">
+                <a href="{{ volver_url }}">
+                    Cancelar
+                </a>
+
+                <button
+                    class="intera-btn"
+                    type="submit"
+                >
+                    Eliminar
+                </button>
+            </div>
+        </form>
+    </section>
+{% endblock %}

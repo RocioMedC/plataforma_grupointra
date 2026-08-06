@@ -1,0 +1,17 @@
+{% extends 'portafolio/_base.html' %}
+
+{% block titulo %}
+    Eliminar recurso
+{% endblock %}
+
+{% block contenido %}
+    <section class="card form">
+        <p>¿Eliminar “{{ item }}”?</p>
+
+        <form method="post">
+            {% csrf_token %}
+
+            <button>Eliminar</button>
+        </form>
+    </section>
+{% endblock %}

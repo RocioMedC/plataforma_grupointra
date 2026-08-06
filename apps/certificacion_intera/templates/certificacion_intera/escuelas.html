@@ -1,0 +1,184 @@
+{% extends 'certificacion_intera/_base.html' %}
+
+{% block titulo %}
+    {% if seleccion_proceso %}
+        Selecciona una escuela
+    {% else %}
+        Escuelas
+    {% endif %}
+{% endblock %}
+
+{% block contenido %}
+    <div class="intera-stack">
+        {% if seleccion_proceso %}
+            <section class="intera-card intera-card-pad">
+                <h2>
+                    Selecciona una escuela
+                </h2>
+
+                <p>
+                    Selecciona la institución para la que deseas crear el
+                    proceso de certificación.
+                </p>
+
+                <p>
+                    <a href="{{ return_url }}">
+                        Cancelar y volver al Panel
+                    </a>
+                    ·
+                    <a href="{% url 'certificacion_intera:escuela_crear' %}">
+                        Registrar nueva escuela
+                    </a>
+                </p>
+            </section>
+        {% else %}
+    <div>
+        <a
+            class="intera-btn"
+            href="{% url 'certificacion_intera:escuela_crear' %}"
+        >
+            Registrar escuela
+        </a>
+    </div>
+        {% endif %}
+
+        <section class="intera-card intera-card-pad">
+            <form
+                method="get"
+                class="intera-form-grid"
+            >
+                {% if seleccion_proceso %}
+                    <input
+                        type="hidden"
+                        name="accion"
+                        value="crear_proceso"
+                    >
+                {% endif %}
+
+                <div class="intera-field full">
+                    <label for="q">
+                        Buscar
+                    </label>
+
+                    <input
+                        id="q"
+                        name="q"
+                        value="{{ q }}"
+                        placeholder="Buscar por nombre, ubicación o contacto"
+                    >
+                </div>
+
+                <div class="intera-field">
+                    <label>
+                        Estado
+                    </label>
+
+                    <select name="estado">
+                        <option value="">
+                            Todos
+                        </option>
+
+                        {% for estado in estados %}
+                            <option
+                                value="{{ estado }}"
+                                {% if filtros.estado == estado %}selected{% endif %}
+                            >
+                                {{ estado }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="intera-field">
+                    <label>
+                        Municipio
+                    </label>
+
+                    <input
+                        name="municipio"
+                        value="{{ filtros.municipio|default:'' }}"
+                    >
+                </div>
+
+                <div class="intera-form-actions">
+                    <a href="{% url 'certificacion_intera:escuelas' %}">
+                        Limpiar filtros
+                    </a>
+
+                    <button class="intera-btn">
+                        Buscar
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <section class="intera-card">
+            <div class="intera-table-wrap">
+                <table class="intera-table">
+                    <tbody>
+                        {% for escuela in escuelas %}
+                            <tr>
+                                <td>
+                                    <b>
+                                        {{ escuela.nombre }}
+                                    </b>
+
+                                    <small>
+                                        {{ escuela.municipio }},
+                                        {{ escuela.estado }}
+                                    </small>
+                                </td>
+
+                                <td>
+                                    {{ escuela.contacto|default:escuela.correo|default:'No registrado' }}
+                                </td>
+
+                                <td>
+                                    {% if seleccion_proceso %}
+                                        <a
+                                            class="intera-btn"
+                                            href="{% url 'certificacion_intera:proceso_crear' escuela.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                        >
+                                            Crear proceso
+                                        </a>
+
+                                        <a
+                                            href="{% url 'certificacion_intera:escuela_detalle' escuela.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                        >
+                                            Ver escuela
+                                        </a>
+                                    {% else %}
+                                        <a
+                                            href="{% url 'certificacion_intera:escuela_detalle' escuela.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                        >
+                                            Ver escuela →
+                                        </a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td
+                                    class="intera-empty"
+                                    colspan="3"
+                                >
+                                    {% if seleccion_proceso %}
+                                        Primero debes registrar una escuela para
+                                        crear un proceso.
+
+                                        <a href="{% url 'certificacion_intera:escuela_crear' %}">
+                                            Registrar escuela
+                                        </a>
+                                    {% else %}
+                                        No encontramos escuelas con esos
+                                        criterios.
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+{% endblock %}

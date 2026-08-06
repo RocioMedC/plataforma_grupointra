@@ -1,0 +1,22 @@
+{% extends 'portafolio/_base.html' %}
+
+{% block titulo %}
+    {{ titulo }}
+{% endblock %}
+
+{% block contenido %}
+    <section class="card form">
+        <form
+            method="post"
+            enctype="multipart/form-data"
+        >
+            {% csrf_token %}
+
+            {% for field in form %}
+                <label>{{ field.label }}{{ field }}</label>
+            {% endfor %}
+
+            <button>Guardar cambios</button>
+        </form>
+    </section>
+{% endblock %}

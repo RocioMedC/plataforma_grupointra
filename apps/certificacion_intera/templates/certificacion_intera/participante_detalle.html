@@ -1,0 +1,181 @@
+{% extends 'certificacion_intera/_base.html' %}
+
+{% block titulo %}
+    Expediente de participante
+{% endblock %}
+
+{% block contenido %}
+    <div class="intera-stack">
+        <p>
+            <a
+                href="{% url 'certificacion_intera:proceso_detalle' participante.proceso.id %}"
+            >
+                ← Volver al proceso
+            </a>
+        </p>
+
+        <section class="intera-card intera-detail-head">
+            <div>
+                <div class="intera-header-eyebrow">
+                    {{ participante.proceso.escuela.nombre }} ·
+                    {{ participante.proceso.nombre }}
+                </div>
+
+                <h1>
+                    {{ participante.nombre }}
+                </h1>
+
+                <p>
+                    Alumno: {{ participante.numero_alumno }}
+                    {% if participante.grupo %}
+                        · Grupo: {{ participante.grupo }}
+                    {% endif %}
+                </p>
+            </div>
+
+            <a
+                class="intera-btn"
+                href="{% url 'certificacion_intera:participante_editar' participante.id %}"
+            >
+                Editar
+            </a>
+        </section>
+
+        <section class="intera-card intera-card-pad">
+            <div class="intera-card-head">
+                <div>
+                    <h2>
+                        Entrevista 1:1
+                    </h2>
+
+                    <p>
+                        Registro privado de seguimiento individual.
+                    </p>
+                </div>
+
+                <a
+                    class="intera-btn"
+                    href="{% url 'certificacion_intera:entrevista_1a1_acceso' participante.id %}"
+                >
+                    Solicitar acceso
+                </a>
+            </div>
+
+            <p class="intera-muted">
+                    Requiere instrumentos obligatorios contestados y confirmación
+                    de identidad.
+            </p>
+        </section>
+
+        <section class="intera-card">
+            <div class="intera-card-head">
+                <h2>
+                    Aplicaciones y resultados
+                </h2>
+
+                <a
+                    href="{% url 'certificacion_intera:aplicacion_crear' participante.id %}"
+                >
+                    Generar aplicación →
+                </a>
+            </div>
+
+            <div class="intera-list">
+                {% for aplicacion in aplicaciones %}
+                    <div class="intera-list-row">
+                        <span>
+                            <b>
+                                {{ aplicacion.instrumento.nombre }}
+                            </b>
+
+                            <small>
+                                {{ aplicacion.get_estado_display }}
+                            </small>
+                        </span>
+
+                        {% if aplicacion.estado == 'respondida' %}
+                            <a
+                                href="{% url 'certificacion_intera:resultado' aplicacion.id %}"
+                            >
+                                Resultado →
+                            </a>
+                        {% endif %}
+                    </div>
+                {% empty %}
+                    <div class="intera-empty">
+                        No hay aplicaciones generadas.
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <div class="intera-two-col">
+            <section class="intera-card intera-card-pad">
+                <h2>
+                    Consejerías
+                </h2>
+
+                <p>
+                    <a
+                        href="{% url 'certificacion_intera:consejeria_crear' participante.id %}"
+                    >
+                        Registrar sesión
+                    </a>
+                    (máximo tres).
+                </p>
+
+                {% for c in consejerias %}
+                    <p>
+                        {{ c.fecha|date:'d/m/Y' }} ·
+                        {{ c.get_estado_display }}
+                    </p>
+                {% empty %}
+                    <p class="intera-muted">
+                        Aún no hay sesiones.
+                    </p>
+                {% endfor %}
+            </section>
+
+            <section class="intera-card intera-card-pad">
+                <h2>
+                    Canalizaciones
+                </h2>
+
+                {% for c in canalizaciones %}
+                    <p>
+                        <b>
+                            {{ c.get_tipo_display }}
+                        </b>
+                        · {{ c.get_estado_display }}
+                    </p>
+
+                    <p>
+                        {{ c.fecha|date:'d/m/Y' }} ·
+                        {{ c.get_prioridad_display }} ·
+                        {{ c.destino }}
+                    </p>
+
+                    <p>
+                        <a
+                            href="{% url 'certificacion_intera:canalizacion_detalle' c.id %}"
+                        >
+                            Consultar canalización →
+                        </a>
+                    </p>
+                {% empty %}
+                    <p>
+                        Sin canalizaciones activas.
+                    </p>
+
+                    <p>
+                        <a
+                            href="{% url 'certificacion_intera:canalizacion_crear' participante.id %}"
+                        >
+                            Registrar canalización
+                        </a>
+                    </p>
+                {% endfor %}
+            </section>
+        </div>
+    </div>
+{% endblock %}

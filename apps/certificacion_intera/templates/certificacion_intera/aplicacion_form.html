@@ -1,0 +1,60 @@
+{% extends 'certificacion_intera/_base.html' %}
+
+{% block titulo %}
+    Nueva aplicación
+{% endblock %}
+
+{% block contenido %}
+    <section class="intera-card intera-form">
+        <div class="intera-form-head">
+            <h2>
+                {{ participante.nombre }}
+            </h2>
+
+            <p>
+                Genera un enlace público para que la persona responda sin
+                iniciar sesión.
+            </p>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="intera-field">
+                <label>
+                    Instrumento configurado
+                </label>
+
+                <select name="configuracion_id">
+                    {% for c in configuraciones %}
+                        <option value="{{ c.id }}">
+                            {{ c.instrumento.nombre }}
+                            {% if c.requerido %}
+                                (requerido)
+                            {% endif %}
+                        </option>
+                    {% empty %}
+                        <option>
+                            Primero configura instrumentos para el proceso
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="intera-form-actions">
+                <a
+                    href="{% url 'certificacion_intera:participante_detalle' participante.id %}"
+                >
+                    Cancelar
+                </a>
+
+                <button
+                    class="intera-btn"
+                    {% if not configuraciones %}disabled{% endif %}
+                >
+                    Generar enlace
+                </button>
+            </div>
+        </form>
+    </section>
+{% endblock %}

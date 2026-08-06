@@ -1,0 +1,204 @@
+{% load static %}
+
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width,initial-scale=1"
+    >
+
+    <title>Certificación INTERA</title>
+
+    <link
+        rel="stylesheet"
+        href="{% static 'certificacion_intera/css/certificacion_intera.css' %}"
+    >
+
+    <link
+        rel="stylesheet"
+        href="{% static 'certificacion_intera/css/navegacion_intera.css' %}"
+    >
+</head>
+
+<body>
+    <div class="intera-shell">
+        <button
+            class="intera-menu-toggle"
+            type="button"
+            aria-controls="intera-sidebar"
+            aria-expanded="false"
+        >
+            Menú
+        </button>
+
+        <aside
+            id="intera-sidebar"
+            class="intera-sidebar"
+            aria-label="Navegación de Certificación INTERA"
+        >
+            <div class="intera-sidebar-brand">
+                <div class="intera-sidebar-mark">
+                    I
+                </div>
+
+                <div>
+                    <div class="intera-sidebar-title">
+                        Certificación INTERA
+                    </div>
+
+                    <div class="intera-sidebar-subtitle">
+                        Coordinación INTERA
+                    </div>
+                </div>
+            </div>
+
+            <button
+                class="intera-menu-close"
+                type="button"
+                aria-label="Cerrar menú"
+            >
+                ×
+            </button>
+
+            <nav class="intera-nav">
+                <div class="intera-nav-heading">
+                    Operación
+                </div>
+
+                <a
+                    href="{% url 'certificacion_intera:dashboard' %}"
+                    class="intera-nav-item{% if vista_actual == 'dashboard' %} active{% endif %}"
+                >
+                    Panel
+                </a>
+
+                <a
+                    href="{% url 'certificacion_intera:escuelas' %}"
+                    class="intera-nav-item{% if vista_actual == 'escuelas' %} active{% endif %}"
+                >
+                    Escuelas
+                </a>
+
+                <a
+                    href="{% url 'certificacion_intera:procesos' %}"
+                    class="intera-nav-item{% if vista_actual == 'procesos' %} active{% endif %}"
+                >
+                    Procesos
+                </a>
+
+                <a
+                    href="{% url 'certificacion_intera:participantes' %}"
+                    class="intera-nav-item{% if vista_actual == 'participantes' %} active{% endif %}"
+                >
+                    Participantes
+                </a>
+
+                <a
+                    href="{% url 'certificacion_intera:entrevistas' %}"
+                    class="intera-nav-item{% if vista_actual == 'entrevistas' %} active{% endif %}"
+                >
+                    Entrevistas
+                </a>
+
+                <a
+                    href="{% url 'certificacion_intera:seguimiento' %}"
+                    class="intera-nav-item{% if vista_actual == 'seguimiento' %} active{% endif %}"
+                >
+                    Seguimiento
+                </a>
+
+                <div class="intera-nav-heading">
+                    Administración
+                </div>
+
+                <a
+                    href="{% url 'certificacion_intera:configuracion_general' %}"
+                    class="intera-nav-item{% if vista_actual == 'configuracion' %} active{% endif %}"
+                >
+                    Configuración
+                </a>
+            </nav>
+
+            <div class="intera-sidebar-footer">
+                <form
+                    method="post"
+                    action="{% url 'logout' %}"
+                >
+                    {% csrf_token %}
+
+                    <button
+                        class="intera-nav-item intera-logout"
+                        type="submit"
+                    >
+                        Cerrar sesión
+                    </button>
+                </form>
+            </div>
+        </aside>
+
+        <div class="intera-main">
+            <header class="intera-header">
+                <div>
+                    <div class="intera-header-eyebrow">
+                        Certificación INTERA
+                    </div>
+
+                    <div class="intera-header-title">
+                        {% block titulo %}
+                        {% endblock %}
+                    </div>
+                </div>
+
+                <div class="intera-user-chip">
+                    <span>
+                        {% if user.get_full_name %}
+                            {{ user.get_full_name }}
+                        {% else %}
+                            Coordinación INTERA
+                        {% endif %}
+                    </span>
+
+                    <b>
+                        {{ user.username|slice:':2'|upper }}
+                    </b>
+                </div>
+            </header>
+
+            <main class="intera-content">
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="intera-message">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+
+                {% block contenido %}
+                {% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const s = document.getElementById('intera-sidebar');
+            const o = document.querySelector('.intera-menu-toggle');
+            const c = document.querySelector('.intera-menu-close');
+
+            function setMenu(open) {
+                s.classList.toggle('is-open', open);
+                o.setAttribute('aria-expanded', open);
+            }
+
+            o.addEventListener('click', () => setMenu(true));
+            c.addEventListener('click', () => setMenu(false));
+        }());
+    </script>
+
+    {% block scripts %}
+    {% endblock %}
+</body>
+</html>

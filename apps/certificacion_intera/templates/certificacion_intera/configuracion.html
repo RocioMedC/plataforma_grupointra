@@ -1,0 +1,41 @@
+{% extends 'certificacion_intera/_base.html' %}
+
+{% block titulo %}
+    Batería y aplicación
+{% endblock %}
+
+{% block contenido %}
+    <div class="intera-stack">
+        <section class="intera-card intera-card-pad">
+            <h2>
+                {{ proceso.nombre }}
+            </h2>
+
+            <p>
+                Modifica la selección y el orden mientras el proceso siga en
+                creación y no existan aplicaciones.
+            </p>
+
+            <form
+                method="post"
+                class="intera-form"
+            >
+                {% csrf_token %}
+
+                {% include 'certificacion_intera/_bateria_selector.html' %}
+
+                <div class="intera-form-actions">
+                    <a
+                        href="{% url 'certificacion_intera:proceso_detalle' proceso.id %}"
+                    >
+                        Volver
+                    </a>
+
+                    <button class="intera-btn">
+                        Guardar batería
+                    </button>
+                </div>
+            </form>
+        </section>
+    </div>
+{% endblock %}

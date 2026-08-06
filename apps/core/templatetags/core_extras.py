@@ -1,7 +1,9 @@
 from django import template
 from django.utils.safestring import mark_safe
 
+
 register = template.Library()
+
 
 # Mismos trazos que el mockup "Centralización Intra" (método icon()).
 _ICONOS = {
@@ -10,8 +12,10 @@ _ICONOS = {
         '<line x1="3" y1="9" x2="21" y2="9"></line>'
         '<line x1="8" y1="2.5" x2="8" y2="6"></line>'
         '<line x1="16" y1="2.5" x2="16" y2="6"></line>'
-        '<circle cx="8" cy="13.5" r="1.1" fill="{color}" stroke="none"></circle>'
-        '<circle cx="12" cy="13.5" r="1.1" fill="{color}" stroke="none"></circle>'
+        '<circle cx="8" cy="13.5" r="1.1" fill="{color}" '
+        'stroke="none"></circle>'
+        '<circle cx="12" cy="13.5" r="1.1" fill="{color}" '
+        'stroke="none"></circle>'
     ),
     'finanzas': (
         '<line x1="4" y1="20" x2="20" y2="20"></line>'
@@ -19,9 +23,15 @@ _ICONOS = {
         '<rect x="10.4" y="8" width="3.2" height="10" rx=".6"></rect>'
         '<rect x="15.8" y="5" width="3.2" height="13" rx=".6"></rect>'
     ),
+    'certificacion_intera': (
+        '<path d="M12 3 5 6v5.5c0 4.3 3 7.4 7 9 4-1.6 7-4.7 '
+        '7-9V6l-7-3Z"></path>'
+        '<path d="m8.8 12 2.1 2.1 4.5-4.5"></path>'
+    ),
     'orbitaedu': (
         '<path d="M2.5 8.5 12 4l9.5 4.5L12 13 2.5 8.5Z"></path>'
-        '<path d="M6 10.5V15c0 1.4 2.7 2.8 6 2.8s6-1.4 6-2.8v-4.5"></path>'
+        '<path d="M6 10.5V15c0 1.4 2.7 2.8 6 2.8s6-1.4 '
+        '6-2.8v-4.5"></path>'
         '<line x1="21.5" y1="8.5" x2="21.5" y2="13"></line>'
     ),
     'orbitacontrol': (
@@ -39,7 +49,8 @@ _ICONOS = {
         '<path d="M16 14.6a4.6 4.6 0 0 1 4.5 4.4"></path>'
     ),
     'capacitacion': (
-        '<path d="M12 3 5 6v5.5c0 4.3 3 7.4 7 9 4-1.6 7-4.7 7-9V6l-7-3Z"></path>'
+        '<path d="M12 3 5 6v5.5c0 4.3 3 7.4 7 9 4-1.6 7-4.7 '
+        '7-9V6l-7-3Z"></path>'
         '<path d="M9 12l2 2 4-4"></path>'
     ),
     'soporte': (
@@ -51,7 +62,8 @@ _ICONOS = {
         '<line x1="9.6" y1="9.6" x2="6" y2="6"></line>'
     ),
     'comunicados': (
-        '<path d="M4 10v4a1 1 0 0 0 1 1h2l9 4V5L7 9H5a1 1 0 0 0-1 1Z"></path>'
+        '<path d="M4 10v4a1 1 0 0 0 1 1h2l9 4V5L7 9H5a1 1 '
+        '0 0 0-1 1Z"></path>'
         '<path d="M19 9a3 3 0 0 1 0 6"></path>'
         '<line x1="8" y1="15" x2="9" y2="20"></line>'
     ),
@@ -59,10 +71,24 @@ _ICONOS = {
 
 
 @register.simple_tag
-def icono_modulo(key, color='currentColor', size=22):
-    contenido = _ICONOS.get(key, '<circle cx="12" cy="12" r="8"></circle>').replace('{color}', color)
-    svg = (
-        f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" '
-        f'stroke="{color}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{contenido}</svg>'
+def icono_modulo(
+    key,
+    color='currentColor',
+    size=22,
+):
+    contenido = _ICONOS.get(
+        key,
+        '<circle cx="12" cy="12" r="8"></circle>',
+    ).replace(
+        '{color}',
+        color,
     )
+
+    svg = (
+        f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" '
+        f'fill="none" stroke="{color}" stroke-width="1.7" '
+        f'stroke-linecap="round" stroke-linejoin="round">'
+        f'{contenido}</svg>'
+    )
+
     return mark_safe(svg)

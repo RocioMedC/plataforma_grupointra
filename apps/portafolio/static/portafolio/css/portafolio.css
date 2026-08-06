@@ -1,0 +1,151 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: #eef1f6;
+    color: #1b2c4f;
+    font: 14px Arial, sans-serif;
+}
+
+.shell {
+    display: flex;
+    min-height: 100vh;
+}
+
+aside {
+    width: 246px;
+    padding: 24px 14px;
+    background: linear-gradient(180deg, #1b2c4f, #152038);
+    color: #fff;
+}
+
+aside h2 {
+    margin: 0;
+}
+
+aside p {
+    color: #9db0d0;
+    font-size: 12px;
+}
+
+aside a {
+    display: block;
+    padding: 11px;
+    color: #c7d0de;
+    text-decoration: none;
+    border-radius: 8px;
+}
+
+aside a:hover {
+    background: #303d5b;
+}
+
+main {
+    flex: 1;
+    padding: 30px;
+}
+
+header {
+    margin-bottom: 22px;
+}
+
+header small {
+    color: #8a93a6;
+    letter-spacing: 0.12em;
+}
+
+h1,
+h2 {
+    font-family: Georgia, serif;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(
+        auto-fit,
+        minmax(180px, 1fr)
+    );
+    gap: 16px;
+}
+
+.card {
+    display: block;
+    background: #fff;
+    border: 1px solid #e6eaf2;
+    border-radius: 16px;
+    padding: 20px;
+    text-decoration: none;
+    color: #1b2c4f;
+}
+
+.grid strong,
+.grid b,
+.grid small {
+    display: block;
+}
+
+.grid strong {
+    font-size: 28px;
+    color: #5b5fae;
+}
+
+.grid b {
+    margin: 8px 0;
+}
+
+.grid small,
+td small {
+    color: #8a93a6;
+}
+
+.form {
+    max-width: 800px;
+    margin-bottom: 20px;
+}
+
+.form label {
+    display: block;
+    margin: 12px 0;
+    font-weight: bold;
+}
+
+.form input,
+.form textarea,
+.form select {
+    display: block;
+    width: 100%;
+    padding: 9px;
+    border: 1px solid #d9dfeb;
+    border-radius: 7px;
+    margin-top: 5px;
+}
+
+button {
+    padding: 10px 15px;
+    background: #5b5fae;
+    border: 0;
+    border-radius: 8px;
+    color: #fff;
+    font-weight: bold;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+td {
+    padding: 12px;
+    border-top: 1px solid #eef1f6;
+}
+
+td small {
+    display: block;
+    margin-top: 4px;
+}
+
+.error {
+    color: #b4413b;
+}

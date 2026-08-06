@@ -1,0 +1,312 @@
+{% extends 'certificacion_intera/_base.html' %}
+
+{% block titulo %}
+    Expediente de canalización
+{% endblock %}
+
+{% block accion_primaria %}
+    {% if canalizacion.estado != 'cerrada' and canalizacion.estado != 'cancelada' %}
+        <a
+            class="intera-btn"
+            href="{% url 'certificacion_intera:canalizacion_editar' canalizacion.id %}"
+        >
+            Editar canalización
+        </a>
+    {% endif %}
+{% endblock %}
+
+{% block contenido %}
+    <div class="intera-stack">
+        <p>
+            <a
+                href="{% url 'certificacion_intera:participante_detalle' canalizacion.participante.id %}"
+            >
+                ← Volver al participante
+            </a>
+        </p>
+
+        <section class="intera-card intera-card-pad">
+            <h1>
+                {{ canalizacion.get_tipo_display }}
+            </h1>
+
+            <p>
+                {{ canalizacion.participante.nombre }} ·
+                {{ canalizacion.participante.proceso.escuela.nombre }}
+            </p>
+
+            <dl class="intera-detail-list">
+                <div>
+                    <dt>
+                        Estado
+                    </dt>
+
+                    <dd>
+                        {{ canalizacion.get_estado_display }}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt>
+                        Prioridad
+                    </dt>
+
+                    <dd>
+                        {{ canalizacion.get_prioridad_display }}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt>
+                        Destino
+                    </dt>
+
+                    <dd>
+                        {{ canalizacion.destino }}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt>
+                        Fecha de solicitud
+                    </dt>
+
+                    <dd>
+                        {{ canalizacion.fecha|date:'d/m/Y' }}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt>
+                        Estado de envío
+                    </dt>
+
+                    <dd>
+                        {{ canalizacion.get_estado_envio_display }}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt>
+                        Estado clínico
+                    </dt>
+
+                    <dd>
+                        {{ canalizacion.get_estado_clinico_display }}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt>
+                        Motivo
+                    </dt>
+
+                    <dd>
+                        {{ canalizacion.motivo }}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt>
+                        Observaciones
+                    </dt>
+
+                    <dd>
+                        {{ canalizacion.observaciones|default:'Sin observaciones.' }}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt>
+                        Comentarios de recepción
+                    </dt>
+
+                    <dd>
+                        {{ canalizacion.comentarios_recepcion|default:'Sin respuesta de recepción.' }}
+                    </dd>
+                </div>
+            </dl>
+        </section>
+
+        {% if solicitud %}
+            <section class="intera-card">
+                <div class="intera-card-head">
+                    <div>
+                        <h2>
+                            Seguimiento en Consultorio Web
+                        </h2>
+
+                        <p>
+                            Intercambio administrativo de la solicitud de
+                            atención.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="intera-integration-grid">
+                    <div>
+                        <small>
+                            Estado técnico
+                        </small>
+
+                        <b>
+                            {{ solicitud.get_integration_status_display }}
+                        </b>
+                    </div>
+
+                    <div>
+                        <small>
+                            Estado administrativo remoto
+                        </small>
+
+                        <b>
+                            {{ remote_status_label|default:'Aún sin respuesta' }}
+                        </b>
+                    </div>
+
+                    <div>
+                        <small>
+                            Primer envío
+                        </small>
+
+                        <b>
+                            {{ solicitud.sent_at|date:'d/m/Y H:i'|default:'Pendiente' }}
+                        </b>
+                    </div>
+
+                    <div>
+                        <small>
+                            Último intento
+                        </small>
+
+                        <b>
+                            {{ solicitud.last_send_attempt_at|date:'d/m/Y H:i'|default:'Sin intentos' }}
+                        </b>
+                    </div>
+
+                    <div>
+                        <small>
+                            Última consulta
+                        </small>
+
+                        <b>
+                            {{ solicitud.last_status_check_at|date:'d/m/Y H:i'|default:'Sin consultas' }}
+                        </b>
+                    </div>
+
+                    <div>
+                        <small>
+                            Número de intentos
+                        </small>
+
+                        <b>
+                            {{ solicitud.send_attempts }}
+                        </b>
+                    </div>
+
+                    {% if solicitud.comentarios_recepcion %}
+                        <div class="full">
+                            <small>
+                                Último mensaje administrativo
+                            </small>
+
+                            <b>
+                                {{ solicitud.comentarios_recepcion }}
+                            </b>
+                        </div>
+                    {% endif %}
+
+                    {% if solicitud.last_error_message %}
+                        <div class="full intera-integration-error">
+                            <small>
+                                Último error administrativo
+                            </small>
+
+                            <b>
+                                {{ solicitud.last_error_message }}
+                            </b>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="intera-card-actions">
+                    {% if solicitud.integration_status == 'enviada' %}
+                        <form
+                            method="post"
+                            action="{% url 'certificacion_intera:solicitud_actualizar_estado' canalizacion.id %}"
+                        >
+                            {% csrf_token %}
+
+                            <button
+                                class="intera-btn"
+                                type="submit"
+                            >
+                                Actualizar estado
+                            </button>
+                        </form>
+
+                    {% elif integration_enabled and not readiness_error %}
+                        <a
+                            class="intera-btn"
+                            href="{% url 'certificacion_intera:solicitud_confirmar_envio' canalizacion.id %}"
+                        >
+                            {% if solicitud.integration_status == 'error_comunicacion' %}
+                                Reintentar envío
+                            {% else %}
+                                Enviar a Consultorio Web
+                            {% endif %}
+                        </a>
+
+                    {% elif readiness_error %}
+                        <p class="intera-integration-warning">
+                            {{ readiness_error }}
+                        </p>
+
+                    {% else %}
+                        <p class="intera-integration-warning">
+                            La integración está deshabilitada.
+                        </p>
+                    {% endif %}
+                </div>
+            </section>
+        {% endif %}
+
+        <section class="intera-card">
+            <div class="intera-card-head">
+                <div>
+                    <h2>
+                        Historial
+                    </h2>
+
+                    <p>
+                        Eventos registrados en la bitácora del proceso.
+                    </p>
+                </div>
+            </div>
+
+            <div class="intera-list">
+                {% for evento in eventos %}
+                    <div class="intera-list-row">
+                        <span>
+                            <b>
+                                {{ evento.evento }}
+                            </b>
+
+                            <small>
+                                {{ evento.descripcion }}
+                            </small>
+                        </span>
+
+                        <time>
+                            {{ evento.creado_en|date:'d/m/Y H:i' }}
+                        </time>
+                    </div>
+                {% empty %}
+                    <div class="intera-empty">
+                        Aún no hay eventos registrados.
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+{% endblock %}

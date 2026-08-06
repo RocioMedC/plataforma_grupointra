@@ -1,0 +1,69 @@
+{% extends 'certificacion_intera/_base.html' %}
+
+{% block titulo %}
+    Revisar coincidencias
+{% endblock %}
+
+{% block contenido %}
+    <section class="intera-card intera-form">
+        <div class="intera-form-head">
+            <h2>
+                Encontramos escuelas que podrían coincidir con tu registro.
+            </h2>
+
+            <p>
+                Revisa las coincidencias antes de continuar. Una coincidencia
+                no bloquea el registro.
+            </p>
+        </div>
+
+        {% for escuela in coincidencias %}
+            <a
+                class="intera-list-row"
+                href="{% url 'certificacion_intera:escuela_detalle' escuela.id %}"
+            >
+                <span>
+                    <b>
+                        {{ escuela.nombre }}
+                    </b>
+
+                    <small>
+                        {{ escuela.municipio }}, {{ escuela.estado }} ·
+                        {{ escuela.contacto|default:escuela.correo }}
+                    </small>
+                </span>
+
+                <time>
+                    Ver escuela existente →
+                </time>
+            </a>
+        {% endfor %}
+
+        <form
+            method="post"
+            action="{% url 'certificacion_intera:escuela_confirmar' %}"
+        >
+            {% csrf_token %}
+
+            <input
+                type="hidden"
+                name="revision_token"
+                value="{{ revision_token }}"
+            >
+
+            <div class="intera-form-actions">
+                <a href="{% url 'certificacion_intera:escuela_crear' %}">
+                    Volver a editar
+                </a>
+
+                <a href="{% url 'certificacion_intera:escuelas' %}">
+                    Cancelar
+                </a>
+
+                <button class="intera-btn">
+                    Continuar con nueva escuela
+                </button>
+            </div>
+        </form>
+    </section>
+{% endblock %}

@@ -6,7 +6,7 @@ def crear_grupos_sistema_intra(apps, schema_editor):
     inicial de core; se mantiene aquí también como copia reutilizable fuera
     de una migración (por ejemplo desde un management command o los tests)."""
     Group = apps.get_model('auth', 'Group')
-    roles = ['Terapeutas', 'Recepción', 'Administración', 'Dirección', 'Sistemas']
+    roles = ['Terapeutas', 'Recepción', 'Administración', 'Dirección', 'Sistemas', 'Certificación']
 
     for nombre_rol in roles:
         Group.objects.get_or_create(name=nombre_rol)

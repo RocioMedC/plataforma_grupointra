@@ -1,0 +1,99 @@
+{% extends 'certificacion_intera/_base.html' %}
+
+{% block titulo %}
+    Acceso a entrevista 1:1
+{% endblock %}
+
+{% block contenido %}
+    <div class="intera-stack">
+        <p>
+            <a
+                href="{% url 'certificacion_intera:participante_detalle' participante.id %}"
+            >
+                ← Volver al participante
+            </a>
+        </p>
+
+        <section class="intera-card intera-card-pad">
+            <h1>
+                Entrevista 1:1
+            </h1>
+
+            <p>
+                Confirma la identidad del participante antes de iniciar. Este
+                acceso es privado.
+            </p>
+
+            {% if not validacion.puede_iniciar %}
+                <div class="intera-empty">
+                    <b>
+                        No puede iniciarse todavía.
+                    </b>
+
+                    {% if validacion.instrumentos_pendientes %}
+                        <p>
+                            Instrumentos pendientes:
+                            {{ validacion.instrumentos_pendientes|join:', ' }}.
+                        </p>
+                    {% endif %}
+
+                    {% if validacion.respuestas_pendientes %}
+                        <p>
+                            Respuestas obligatorias pendientes:
+                            {{ validacion.respuestas_pendientes|join:', ' }}.
+                        </p>
+                    {% endif %}
+
+                    {% if validacion.datos_faltantes %}
+                        <p>
+                            Datos faltantes:
+                            {{ validacion.datos_faltantes|join:', ' }}.
+                        </p>
+                    {% endif %}
+                </div>
+            {% else %}
+                <form
+                    method="post"
+                    class="intera-form"
+                >
+                    {% csrf_token %}
+
+                    <label>
+                        Número de alumno
+
+                        <input
+                            name="numero_alumno"
+                            required
+                        >
+                    </label>
+
+                    <label>
+                        Nombre completo
+
+                        <input
+                            name="nombre"
+                            required
+                        >
+                    </label>
+
+                    <label>
+                        Fecha de nacimiento
+
+                        <input
+                            type="date"
+                            name="fecha_nacimiento"
+                            required
+                        >
+                    </label>
+
+                    <button
+                        class="intera-btn"
+                        type="submit"
+                    >
+                        Confirmar identidad
+                    </button>
+                </form>
+            {% endif %}
+        </section>
+    </div>
+{% endblock %}

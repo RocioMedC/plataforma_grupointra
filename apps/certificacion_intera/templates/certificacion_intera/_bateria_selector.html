@@ -1,0 +1,102 @@
+{% if errores_bateria %}
+    {% for error in errores_bateria %}
+        <small class="intera-error">
+            {{ error }}
+        </small>
+    {% endfor %}
+{% endif %}
+
+<div
+    class="intera-bateria-list"
+    data-bateria-selector
+>
+    {% for item in bateria %}
+        <article
+            class="intera-bateria-item bateria-instrumento{% if item.bloqueado %} is-blocked bateria-instrumento--bloqueado{% endif %}"
+        >
+            <label class="intera-bateria-choice bateria-instrumento__nombre">
+                <input
+                    type="checkbox"
+                    name="instrumentos"
+                    value="{{ item.instrumento.id }}"
+                    {% if item.seleccionada %}checked{% endif %}
+                    {% if not item.seleccionable %}disabled{% endif %}
+                    data-instrumento-check
+                >
+
+                <span>
+                    <b>
+                        {{ item.nombre_visible }}
+                    </b>
+
+                    <small class="bateria-instrumento__meta">
+                        Versión {{ item.instrumento.version }} ·
+                        {{ item.numero_reactivos }} reactivos
+                    </small>
+                </span>
+            </label>
+
+            <div class="intera-bateria-meta bateria-instrumento__estado">
+                <span
+                    class="intera-badge{% if item.bloqueado %} is-blocked{% endif %}"
+                >
+                    {% if item.bloqueado %}
+                        Bloqueado
+                    {% else %}
+                        Disponible
+                    {% endif %}
+                </span>
+
+                <span class="intera-badge">
+                    {{ item.estado_calculadora_display }}
+                </span>
+            </div>
+
+            <label class="intera-bateria-order bateria-instrumento__orden">
+                Orden
+
+                <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    inputmode="numeric"
+                    name="orden_{{ item.instrumento.id }}"
+                    value="{{ item.orden }}"
+                    {% if not item.seleccionada or not item.seleccionable %}disabled{% endif %}
+                    data-instrumento-order
+                >
+            </label>
+
+            {% if item.bloqueado %}
+                <p>
+                    Este instrumento no está disponible para esta batería
+                    hasta que se apruebe el protocolo institucional.
+                </p>
+            {% endif %}
+        </article>
+    {% empty %}
+        <div class="intera-empty">
+            No hay instrumentos vigentes disponibles desde Portafolio.
+        </div>
+    {% endfor %}
+</div>
+
+<script>
+    document
+        .querySelectorAll('[data-bateria-selector]')
+        .forEach(function (selector) {
+            selector
+                .querySelectorAll('[data-instrumento-check]')
+                .forEach(function (check) {
+                    var order = check
+                        .closest('.intera-bateria-item')
+                        .querySelector('[data-instrumento-order]');
+
+                    check.addEventListener('change', function () {
+                        order.disabled = !check.checked;
+
+                        if (!check.checked) order.value = '';
+                    });
+                });
+        });
+</script>

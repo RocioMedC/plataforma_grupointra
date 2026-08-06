@@ -1,0 +1,17 @@
+{% extends 'portafolio/_base.html' %}
+
+{% block titulo %}
+    Dashboard
+{% endblock %}
+
+{% block contenido %}
+    <section class="grid">
+        {% for nombre, total, url in totales %}
+            <a class="card" href="{% url url %}">
+                <strong>{{ total }}</strong>
+                <b>{{ nombre }}</b>
+                <small>Administrar →</small>
+            </a>
+        {% endfor %}
+    </section>
+{% endblock %}

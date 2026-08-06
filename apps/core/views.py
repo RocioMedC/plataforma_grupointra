@@ -1,13 +1,25 @@
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import render
 
+from apps.core.autenticacion.services import (
+    es_usuario_exclusivo_intera,
+)
 from apps.core.configuracion.modulos import modulos_para
 
 
 @login_required
 def dashboard_view(request):
+    if es_usuario_exclusivo_intera(request.user):
+        raise PermissionDenied
+
     modulos = modulos_para(request.user)
-    accesos_rapidos = [m for m in modulos if m['disponible']][:3]
+
+    accesos_rapidos = [
+        modulo
+        for modulo in modulos
+        if modulo['disponible']
+    ][:3]
 
     contexto = {
         'modulos': modulos,

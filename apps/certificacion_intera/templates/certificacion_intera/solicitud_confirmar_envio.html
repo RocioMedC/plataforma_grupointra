@@ -1,0 +1,165 @@
+{% extends 'certificacion_intera/_base.html' %}
+
+{% block titulo %}
+    Confirmar envío
+{% endblock %}
+
+{% block contenido %}
+    <div class="intera-stack">
+        <p>
+            <a
+                href="{% url 'certificacion_intera:canalizacion_detalle' canalizacion.id %}"
+            >
+                ← Volver a la canalización
+            </a>
+        </p>
+
+        <section class="intera-card intera-card-pad">
+            <h1>
+                Enviar a Consultorio Web
+            </h1>
+
+            <p>
+                Revisa y confirma los datos administrativos que se compartirán.
+            </p>
+
+            <dl class="intera-detail-list">
+                <div>
+                    <dt>
+                        Participante
+                    </dt>
+
+                    <dd>
+                        {{ canalizacion.participante.nombre }}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt>
+                        Escuela
+                    </dt>
+
+                    <dd>
+                        {{ canalizacion.participante.proceso.escuela.nombre }}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt>
+                        Proceso
+                    </dt>
+
+                    <dd>
+                        {{ canalizacion.participante.proceso.nombre }} ·
+                        {{ canalizacion.participante.proceso.ciclo_escolar }}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt>
+                        Tipo de solicitud
+                    </dt>
+
+                    <dd>
+                        {{ canalizacion.get_tipo_display }}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt>
+                        Prioridad
+                    </dt>
+
+                    <dd>
+                        {{ canalizacion.get_prioridad_display }}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt>
+                        Motivo
+                    </dt>
+
+                    <dd>
+                        {{ canalizacion.motivo }}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt>
+                        Teléfono
+                    </dt>
+
+                    <dd>
+                        {{ canalizacion.participante.telefono }}
+                    </dd>
+                </div>
+
+                {% if canalizacion.participante.correo %}
+                    <div>
+                        <dt>
+                            Correo
+                        </dt>
+
+                        <dd>
+                            {{ canalizacion.participante.correo }}
+                        </dd>
+                    </div>
+                {% endif %}
+
+                <div>
+                    <dt>
+                        Consentimiento
+                    </dt>
+
+                    <dd>
+                        La persona autorizada confirmará el envío de datos
+                        administrativos conforme al aviso de privacidad
+                        INTERA v1.
+                    </dd>
+                </div>
+            </dl>
+
+            {% if readiness_error %}
+                <p class="intera-integration-warning">
+                    {{ readiness_error }}
+                </p>
+            {% else %}
+                <form
+                    class="intera-confirm-form"
+                    method="post"
+                    action="{% url 'certificacion_intera:solicitud_enviar' canalizacion.id %}"
+                >
+                    {% csrf_token %}
+
+                    <label>
+                        <input
+                            type="checkbox"
+                            name="confirmar_envio"
+                            value="si"
+                            required
+                        >
+
+                        Confirmo que cuento con el consentimiento para compartir
+                        estos datos administrativos con Consultorio Web.
+                    </label>
+
+                    <div class="intera-form-actions">
+                        <a
+                            href="{% url 'certificacion_intera:canalizacion_detalle' canalizacion.id %}"
+                        >
+                            Cancelar
+                        </a>
+
+                        <button
+                            class="intera-btn"
+                            type="submit"
+                        >
+                            Confirmar y enviar
+                        </button>
+                    </div>
+                </form>
+            {% endif %}
+        </section>
+    </div>
+{% endblock %}

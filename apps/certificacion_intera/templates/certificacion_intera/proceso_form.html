@@ -1,0 +1,167 @@
+{% extends 'certificacion_intera/_base.html' %}
+
+{% block titulo %}
+    Nuevo proceso de certificación
+{% endblock %}
+
+{% block contenido %}
+    <form
+        method="post"
+        class="intera-card intera-form"
+    >
+        {% csrf_token %}
+
+        <input
+            type="hidden"
+            name="return_url"
+            value="{{ return_url }}"
+        >
+
+        <div class="intera-form-head">
+            <h2>
+                Nuevo proceso de certificación
+            </h2>
+
+            <p>
+                Captura los datos generales y define la batería inicial de
+                evaluación.
+            </p>
+        </div>
+
+        {% if form.non_field_errors %}
+            <div class="intera-error">
+                {{ form.non_field_errors }}
+            </div>
+        {% endif %}
+
+        <h3>
+            Datos generales
+        </h3>
+
+        <div class="intera-form-grid">
+            <div class="intera-field">
+                <label for="{{ form.escuela.id_for_label }}">
+                    Escuela *
+                </label>
+
+                {% if escuela_preseleccionada %}
+                    <input
+                        type="text"
+                        value="{{ escuela_preseleccionada.nombre }}"
+                        disabled
+                    >
+                {% else %}
+                    {{ form.escuela }}
+                {% endif %}
+
+                {% for error in form.escuela.errors %}
+                    <small class="intera-error">
+                        {{ error }}
+                    </small>
+                {% endfor %}
+            </div>
+
+            <div class="intera-field">
+                <label for="{{ form.nombre.id_for_label }}">
+                    Nombre *
+                </label>
+
+                {{ form.nombre }}
+
+                {% for error in form.nombre.errors %}
+                    <small class="intera-error">
+                        {{ error }}
+                    </small>
+                {% endfor %}
+            </div>
+
+            <div class="intera-field">
+                <label for="{{ form.ciclo_escolar.id_for_label }}">
+                    Ciclo escolar o periodo
+                </label>
+
+                {{ form.ciclo_escolar }}
+
+                {% for error in form.ciclo_escolar.errors %}
+                    <small class="intera-error">
+                        {{ error }}
+                    </small>
+                {% endfor %}
+            </div>
+
+            <div class="intera-field">
+                <label for="{{ form.fecha_inicio.id_for_label }}">
+                    Fecha de inicio *
+                </label>
+
+                {{ form.fecha_inicio }}
+
+                {% for error in form.fecha_inicio.errors %}
+                    <small class="intera-error">
+                        {{ error }}
+                    </small>
+                {% endfor %}
+            </div>
+
+            <div class="intera-field">
+                <label>
+                    Estado inicial
+                </label>
+
+                <input
+                    type="text"
+                    value="Creación de proceso"
+                    disabled
+                >
+            </div>
+
+            <div class="intera-field full">
+                <label for="{{ form.observaciones.id_for_label }}">
+                    Observaciones
+                </label>
+
+                {{ form.observaciones }}
+
+                {% for error in form.observaciones.errors %}
+                    <small class="intera-error">
+                        {{ error }}
+                    </small>
+                {% endfor %}
+            </div>
+        </div>
+
+        <h3>
+            Batería de evaluación
+        </h3>
+
+        <p>
+            Selecciona los instrumentos que formarán parte de este proceso y
+            asigna un orden consecutivo de aplicación.
+        </p>
+
+        <p>
+            Los instrumentos se mostrarán al participante en el orden indicado.
+        </p>
+
+        {% for error in form.instrumentos.errors %}
+            <small class="intera-error">
+                {{ error }}
+            </small>
+        {% endfor %}
+
+        {% include 'certificacion_intera/_bateria_selector.html' %}
+
+        <div class="intera-form-actions">
+            <a href="{{ volver_url }}">
+                Cancelar
+            </a>
+
+            <button
+                class="intera-btn"
+                type="submit"
+            >
+                Guardar proceso
+            </button>
+        </div>
+    </form>
+{% endblock %}
