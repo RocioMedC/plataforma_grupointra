@@ -6,9 +6,10 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.db.models import Q
 from apps.core.permisos.grupos import usuario_pertenece_a
-from .forms import DocumentoForm, InstrumentoForm, PlantillaPDFForm, PreguntaInstrumentoForm, RecursoCompartidoForm, ReporteForm
+from .forms import DocumentoForm, ImportarInstrumentoForm, InstrumentoForm, PlantillaPDFForm, PreguntaInstrumentoForm, RecursoCompartidoForm, ReporteForm
 from .models import Documento, Instrumento, PlantillaPDF, PreguntaInstrumento, RecursoCompartido, Reporte
 from .services_importacion import importar_preguntas_desde_documento
+from .services_importacion_instrumentos import importar_archivo_subido
 
 CATALOGOS = {
     'instrumento': (Instrumento, InstrumentoForm, 'portafolio:instrumentos'),
@@ -49,7 +50,46 @@ def _catalogo(request, modelo, template, titulo, vista, crear_url, form_class=No
 
 
 @acceso_portafolio_requerido
-def instrumentos_view(request): return _catalogo(request, Instrumento, 'portafolio/catalogo.html', 'Instrumentos', 'instrumentos', 'portafolio:instrumentos', InstrumentoForm)
+def instrumentos_view(request):
+    formulario_importacion = ImportarInstrumentoForm()
+    if request.method == 'POST' and request.POST.get('accion') == 'importar':
+        formulario_importacion = ImportarInstrumentoForm(request.POST, request.FILES)
+        if formulario_importacion.is_valid():
+            try:
+                reporte = importar_archivo_subido(
+                    formulario_importacion.cleaned_data['archivo'],
+                    cargado_por=request.user,
+                )
+            except ValidationError as error:
+                formulario_importacion.add_error('archivo', '; '.join(error.messages))
+            else:
+                if reporte['decision'] == 'sin cambios':
+                    messages.info(request, 'El instrumento ya se encuentra importado y no presenta cambios.')
+                else:
+                    messages.success(
+                        request,
+                        'Instrumento importado correctamente. '
+                        f"Versión: {reporte['version']}. "
+                        f"Preguntas: {reporte['preguntas']}. "
+                        f"Calculadora: {reporte['estado_calculadora']}.",
+                    )
+                return redirect('portafolio:instrumentos')
+    formulario_manual = InstrumentoForm(request.POST or None, request.FILES or None)
+    if request.method == 'POST' and not request.POST.get('accion') and formulario_manual.is_valid():
+        formulario_manual.save()
+        return redirect('portafolio:instrumentos')
+    return render(
+        request,
+        'portafolio/catalogo.html',
+        {
+            'vista_actual': 'instrumentos',
+            'titulo': 'Instrumentos',
+            'items': Instrumento.objects.all(),
+            'form': formulario_manual,
+            'formulario_importacion': formulario_importacion,
+            'es_instrumento': True,
+        },
+    )
 
 
 @acceso_portafolio_requerido

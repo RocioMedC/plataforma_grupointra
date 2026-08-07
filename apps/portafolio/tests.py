@@ -16,7 +16,9 @@ from openpyxl import Workbook
 from .models import (
     CalculadoraInstrumento,
     Documento,
+    ImportacionInstrumento,
     Instrumento,
+    PreguntaInstrumento,
     RevisionInstrumento,
 )
 from .services_entrevista import (
@@ -31,6 +33,7 @@ from .services_calificacion import (
     ADVERTENCIA_CORTA_RESULTADO_ORIENTATIVO,
     ADVERTENCIA_RESULTADO_ORIENTATIVO,
     calcular_resultado,
+    campos_contexto_requeridos,
     edad_cumplida,
     obtener_revision_calculadora,
     validar_variante_por_edad,
@@ -142,6 +145,158 @@ class ImportacionInstrumentosTests(TestCase):
         self.assertEqual(
             preguntas[1].tipo_respuesta,
             'texto_libre',
+        )
+
+
+@override_settings(
+    STORAGES={
+        'default': {
+            'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        },
+        'staticfiles': {
+            'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+        },
+    }
+)
+class ImportacionInstrumentoWebTests(TestCase):
+    def setUp(self):
+        self.usuario = User.objects.create_user(
+            username='importador',
+            password='secreto',
+        )
+        grupo, _ = Group.objects.get_or_create(name='Certificación')
+        self.usuario.groups.add(grupo)
+        self.client.force_login(self.usuario)
+        self.documentos_iniciales = Documento.objects.count()
+        self.instrumentos_iniciales = Instrumento.objects.count()
+
+    def _excel_estructurado(self):
+        libro = Workbook()
+        instrumento = libro.active
+        instrumento.title = 'INSTRUMENTO'
+        instrumento.append(['Campo', 'Valor'])
+        instrumento.append(['Población objetivo', 'Adolescentes'])
+        instrumento.append(['Instrucciones', None])
+        instrumento.append(['Lee cada frase y elige la respuesta más adecuada.', None])
+
+        preguntas = libro.create_sheet('PREGUNTAS')
+        preguntas.append([
+            'instrumento_clave', 'instrumento_nombre', 'variante',
+            'version', 'poblacion', 'edad_min', 'edad_max', 'orden',
+            'pregunta_clave', 'texto', 'tipo_respuesta', 'opciones_json',
+            'requerida', 'visibilidad',
+        ])
+        preguntas.append([
+            'instrumento-web', 'Instrumento web', 'Adolescentes', '1.0',
+            'Adolescentes', 14, 20, 1, 'P-01', 'Primera pregunta',
+            'si_no', '[{"valor":"si","etiqueta":"Sí"},{"valor":"no","etiqueta":"No"}]',
+            True, None,
+        ])
+        preguntas.append([
+            'instrumento-web', 'Instrumento web', 'Adolescentes', '1.0',
+            'Adolescentes', 14, 20, 2, 'P-02', 'Explica tu respuesta',
+            'texto_libre', None, False,
+            '{"pregunta_clave":"P-01","operador":"igual","valor":"si"}',
+        ])
+
+        calculadora = libro.create_sheet('CALCULADORA_SISTEMA')
+        calculadora.append(['Campo', 'Valor'])
+        calculadora.append(['clave_calculadora', 'calc-instrumento-web-v1'])
+        calculadora.append(['version_regla', '1.0'])
+        calculadora.append(['estado_calculadora', 'ORIENTATIVA'])
+        calculadora.append(['requiere_respuestas_completas', True])
+
+        casos = libro.create_sheet('CASOS_PRUEBA')
+        casos.append(['Caso'])
+
+        contenido = BytesIO()
+        libro.save(contenido)
+        return SimpleUploadedFile(
+            'instrumento-web.xlsx',
+            contenido.getvalue(),
+            content_type=(
+                'application/vnd.openxmlformats-officedocument.'
+                'spreadsheetml.sheet'
+            ),
+        )
+
+    def test_importa_desde_instrumentos_toda_la_estructura(self):
+        respuesta = self.client.post(
+            reverse('portafolio:instrumentos'),
+            {'accion': 'importar', 'archivo': self._excel_estructurado()},
+        )
+
+        self.assertRedirects(respuesta, reverse('portafolio:instrumentos'))
+        instrumento = Instrumento.objects.get(clave='instrumento-web')
+        self.assertTrue(instrumento.activo)
+        self.assertEqual(instrumento.preguntas.count(), 2)
+        self.assertIn('Lee cada frase', instrumento.instrucciones)
+        self.assertEqual(instrumento.documento_origen.nombre, 'instrumento-web')
+        self.assertEqual(instrumento.documento_origen.cargado_por, self.usuario)
+        self.assertEqual(
+            instrumento.importacion.metadatos['campos_contexto_requeridos'],
+            ['fecha_nacimiento'],
+        )
+        self.assertEqual(
+            campos_contexto_requeridos(instrumento),
+            {'fecha_nacimiento'},
+        )
+        self.assertEqual(
+            CalculadoraInstrumento.objects.get(
+                instrumento=instrumento,
+            ).estado,
+            CalculadoraInstrumento.Estado.ORIENTATIVA,
+        )
+        pregunta = PreguntaInstrumento.objects.get(instrumento=instrumento, clave='P-02')
+        self.assertFalse(pregunta.requerida)
+        self.assertEqual(pregunta.condicion_visibilidad['pregunta_clave'], 'P-01')
+
+    def test_reimportar_el_mismo_archivo_no_duplica_registros(self):
+        for _ in range(2):
+            self.client.post(
+                reverse('portafolio:instrumentos'),
+                {'accion': 'importar', 'archivo': self._excel_estructurado()},
+            )
+
+        instrumento = Instrumento.objects.get(clave='instrumento-web')
+        self.assertEqual(Documento.objects.filter(nombre='instrumento-web').count(), 1)
+        self.assertEqual(Instrumento.objects.filter(clave='instrumento-web').count(), 1)
+        self.assertEqual(ImportacionInstrumento.objects.filter(instrumento=instrumento).count(), 1)
+        self.assertEqual(PreguntaInstrumento.objects.filter(instrumento=instrumento).count(), 2)
+        self.assertEqual(CalculadoraInstrumento.objects.filter(instrumento=instrumento).count(), 1)
+
+    def test_excel_invalido_muestra_error_y_no_crea_registros(self):
+        archivo = SimpleUploadedFile(
+            'invalido.xlsx',
+            b'no es un libro de Excel',
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        respuesta = self.client.post(
+            reverse('portafolio:instrumentos'),
+            {'accion': 'importar', 'archivo': archivo},
+        )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'no fue posible leer el archivo')
+        self.assertEqual(Documento.objects.count(), self.documentos_iniciales)
+        self.assertEqual(Instrumento.objects.count(), self.instrumentos_iniciales)
+
+    def test_conserva_el_alta_manual_de_instrumentos(self):
+        respuesta = self.client.post(
+            reverse('portafolio:instrumentos'),
+            {
+                'nombre': 'Instrumento manual',
+                'clave': 'instrumento-manual',
+                'activo': 'on',
+            },
+        )
+
+        self.assertRedirects(respuesta, reverse('portafolio:instrumentos'))
+        self.assertTrue(
+            Instrumento.objects.filter(
+                clave='instrumento-manual',
+                activo=True,
+            ).exists()
         )
 
 

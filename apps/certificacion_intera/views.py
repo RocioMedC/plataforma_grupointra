@@ -1170,7 +1170,7 @@ def aplicacion_publica_proceso_view(request, publica):
     indice = configuraciones.index(configuracion) + 1
     preguntas = list(configuracion.instrumento.preguntas.all())
     if (
-        'sexo' in campos_contexto_requeridos(configuracion.instrumento.clave)
+        'sexo' in campos_contexto_requeridos(configuracion.instrumento)
         and not participante.sexo
     ):
         form_sexo = SexoBaremoPublicoForm(request.POST or None)
@@ -1507,7 +1507,7 @@ def aplicacion_publica_config_view(request, token):
     proceso = configuracion.proceso
     instrumento = configuracion.instrumento
     hoy = timezone.localdate()
-    campos_contexto = campos_contexto_requeridos(instrumento.clave)
+    campos_contexto = campos_contexto_requeridos(instrumento)
     contexto = {
         'publica': publica,
         'instrumento': instrumento,
@@ -1787,7 +1787,7 @@ def aplicacion_publica_view(request, token):
         )
     preguntas = list(aplicacion.instrumento.preguntas.all())
     if (
-        'sexo' in campos_contexto_requeridos(aplicacion.instrumento.clave)
+        'sexo' in campos_contexto_requeridos(aplicacion.instrumento)
         and not aplicacion.participante.sexo
     ):
         form_sexo = SexoBaremoPublicoForm(request.POST or None)
@@ -1809,7 +1809,7 @@ def aplicacion_publica_view(request, token):
             },
         )
     if (
-        'fecha_nacimiento' in campos_contexto_requeridos(aplicacion.instrumento.clave)
+        'fecha_nacimiento' in campos_contexto_requeridos(aplicacion.instrumento)
         and not aplicacion.participante.fecha_nacimiento
     ):
         form_fecha = FechaNacimientoPublicoForm(request.POST or None)
