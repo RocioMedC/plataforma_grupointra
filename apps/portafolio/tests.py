@@ -15,6 +15,7 @@ from openpyxl import Workbook
 
 from .models import (
     CalculadoraInstrumento,
+    CategoriaDocumento,
     Documento,
     ImportacionInstrumento,
     Instrumento,
@@ -250,6 +251,9 @@ class ImportacionInstrumentoWebTests(TestCase):
         pregunta = PreguntaInstrumento.objects.get(instrumento=instrumento, clave='P-02')
         self.assertFalse(pregunta.requerida)
         self.assertEqual(pregunta.condicion_visibilidad['pregunta_clave'], 'P-01')
+        from apps.certificacion_intera.views import _instrumentos_para_bateria
+        _, seleccionables = _instrumentos_para_bateria()
+        self.assertIn(instrumento, seleccionables)
 
     def test_reimportar_el_mismo_archivo_no_duplica_registros(self):
         for _ in range(2):
@@ -298,6 +302,114 @@ class ImportacionInstrumentoWebTests(TestCase):
                 activo=True,
             ).exists()
         )
+
+
+@override_settings(
+    STORAGES={
+        'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+        'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+    }
+)
+class EliminacionPortafolioTests(TestCase):
+    def setUp(self):
+        self.usuario = User.objects.create_user(username='eliminador', password='secreto')
+        self.usuario.groups.add(Group.objects.get_or_create(name='Certificación')[0])
+        self.client.force_login(self.usuario)
+        self.categoria = CategoriaDocumento.objects.get_or_create(nombre='Instrumento')[0]
+
+    def _documento(self, nombre='Documento temporal'):
+        return Documento.objects.create(
+            nombre=nombre,
+            categoria=self.categoria,
+            archivo=SimpleUploadedFile('temporal.xlsx', b'contenido'),
+        )
+
+    def test_documento_huerfano_se_elimina_solo_por_post(self):
+        documento = self._documento()
+        url = reverse('portafolio:eliminar', args=['documento', documento.id])
+
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertTrue(Documento.objects.filter(pk=documento.pk).exists())
+        respuesta = self.client.post(url)
+
+        self.assertRedirects(respuesta, reverse('portafolio:documentos'))
+        self.assertFalse(Documento.objects.filter(pk=documento.pk).exists())
+
+    def test_documento_usado_se_protege_sin_error_servidor(self):
+        documento = self._documento()
+        Instrumento.objects.create(
+            nombre='Instrumento protegido',
+            clave='instrumento-protegido',
+            documento_origen=documento,
+        )
+        url = reverse('portafolio:eliminar', args=['documento', documento.id])
+
+        respuesta = self.client.post(url, follow=True)
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'no puede eliminarse')
+        self.assertTrue(Documento.objects.filter(pk=documento.pk).exists())
+
+    def test_instrumento_sin_historial_se_elimina_con_sus_dependencias(self):
+        documento = self._documento('Origen importado')
+        instrumento = Instrumento.objects.create(
+            nombre='Instrumento temporal',
+            clave='instrumento-temporal',
+            documento_origen=documento,
+        )
+        ImportacionInstrumento.objects.create(
+            instrumento=instrumento,
+            documento=documento,
+            huella_contenido='a' * 64,
+        )
+        PreguntaInstrumento.objects.create(instrumento=instrumento, orden=1, texto='Pregunta')
+        RevisionInstrumento.objects.create(instrumento=instrumento, version='1.0', estructura={})
+        CalculadoraInstrumento.objects.create(
+            instrumento=instrumento,
+            clave='calc-temporal',
+            version_regla='1.0',
+            estado=CalculadoraInstrumento.Estado.ACTIVA,
+            huella_contenido='b' * 64,
+        )
+
+        respuesta = self.client.post(
+            reverse('portafolio:eliminar', args=['instrumento', instrumento.id]),
+        )
+
+        self.assertRedirects(respuesta, reverse('portafolio:instrumentos'))
+        self.assertFalse(Instrumento.objects.filter(pk=instrumento.pk).exists())
+        self.assertFalse(Documento.objects.filter(pk=documento.pk).exists())
+
+    def test_instrumento_configurado_en_intera_no_se_elimina(self):
+        from apps.certificacion_intera.models import (
+            ConfiguracionInstrumento,
+            Escuela,
+            ProcesoCertificacion,
+        )
+
+        instrumento = Instrumento.objects.create(
+            nombre='Instrumento con historial',
+            clave='instrumento-con-historial',
+        )
+        escuela = Escuela.objects.create(
+            nombre='Escuela', director='Dirección', cantidad_total_alumnos=1,
+            estado='Estado', municipio='Municipio',
+        )
+        proceso = ProcesoCertificacion.objects.create(
+            escuela=escuela,
+            ciclo_escolar='2026-2027',
+            fecha_inicio=date.today(),
+        )
+        ConfiguracionInstrumento.objects.create(proceso=proceso, instrumento=instrumento)
+
+        respuesta = self.client.post(
+            reverse('portafolio:eliminar', args=['instrumento', instrumento.id]),
+            follow=True,
+        )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'no puede eliminarse')
+        self.assertTrue(Instrumento.objects.filter(pk=instrumento.pk).exists())
 
 
 class PlantillaEntrevistaUnoAUnoTests(TestCase):

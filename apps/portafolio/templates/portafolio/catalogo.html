@@ -101,6 +101,14 @@
                                 </a>
                             </td>
                         {% endif %}
+
+                        {% if es_instrumento %}
+                            <td>
+                                <a href="{% url 'portafolio:eliminar' 'instrumento' item.id %}">
+                                    Eliminar instrumento
+                                </a>
+                            </td>
+                        {% endif %}
                     </tr>
                 {% empty %}
                     <tr>
