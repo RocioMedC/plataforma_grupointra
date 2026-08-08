@@ -1566,6 +1566,120 @@ class AplicacionPublicaGeneralTests(TestCase):
             1,
         )
 
+    def test_procesos_distintos_tienen_accesos_y_qr_distintos(self):
+        otra_escuela = Escuela.objects.create(
+            nombre='Otra escuela',
+            director='Dirección',
+            cantidad_total_alumnos=10,
+            estado='Estado',
+            municipio='Municipio',
+        )
+        otro_proceso = ProcesoCertificacion.objects.create(
+            escuela=otra_escuela,
+            ciclo_escolar='otro',
+            fecha_inicio=date.today(),
+        )
+        primera = AplicacionPublica.objects.create(proceso=self.proceso)
+        segunda = AplicacionPublica.objects.create(proceso=otro_proceso)
+
+        self.assertNotEqual(primera.token, segunda.token)
+        self.assertNotEqual(primera.url_publica, segunda.url_publica)
+        self.assertNotEqual(
+            reverse(
+                'certificacion_intera:aplicacion_publica_proceso_qr',
+                args=[self.proceso.id],
+            ),
+            reverse(
+                'certificacion_intera:aplicacion_publica_proceso_qr',
+                args=[otro_proceso.id],
+            ),
+        )
+
+    @patch('apps.certificacion_intera.views.qrcode.make')
+    def test_enlace_mostrado_y_qr_reciben_exactamente_la_misma_url(self, crear_qr):
+        class ImagenFalsa:
+            def save(self, destino):
+                destino.write(b'<svg></svg>')
+
+        crear_qr.return_value = ImagenFalsa()
+        publica = AplicacionPublica.objects.create(proceso=self.proceso)
+        detalle = self.client.get(
+            reverse('certificacion_intera:proceso_detalle', args=[self.proceso.id]),
+            {'tab': 'bateria'},
+        )
+        url_absoluta = f'http://testserver{publica.url_publica}'
+        self.assertContains(detalle, url_absoluta, count=2)
+
+        respuesta_qr = self.client.get(
+            reverse(
+                'certificacion_intera:aplicacion_publica_proceso_qr',
+                args=[self.proceso.id],
+            ),
+        )
+
+        self.assertEqual(respuesta_qr.status_code, 200)
+        self.assertEqual(crear_qr.call_args.args[0], url_absoluta)
+
+    def test_qr_no_tiene_token_separado_y_cambiar_bateria_no_cambia_acceso(self):
+        publica = AplicacionPublica.objects.create(proceso=self.proceso)
+        token = publica.token
+        campos = {campo.name for campo in AplicacionPublica._meta.get_fields()}
+        self.assertNotIn('token_qr', campos)
+        self.assertNotIn('qr_token', campos)
+
+        self.proceso.configuraciones_instrumento.all().delete()
+        nuevo = Instrumento.objects.create(nombre='Instrumento nuevo', clave='nuevo-qr')
+        ConfiguracionInstrumento.objects.create(
+            proceso=self.proceso,
+            instrumento=nuevo,
+            orden=1,
+        )
+        publica.refresh_from_db()
+
+        self.assertEqual(publica.token, token)
+
+    def test_proceso_sin_instrumentos_conserva_acceso_y_muestra_mensaje(self):
+        self.proceso.configuraciones_instrumento.all().delete()
+        generar = reverse(
+            'certificacion_intera:aplicacion_publica_proceso_generar',
+            args=[self.proceso.id],
+        )
+        self.assertEqual(self.client.post(generar).status_code, 302)
+        publica = AplicacionPublica.objects.get(proceso=self.proceso)
+        self.client.logout()
+
+        respuesta = self.client.get(publica.url_publica)
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(
+            respuesta,
+            'Este proceso aún no tiene instrumentos disponibles.',
+        )
+
+    def test_participantes_del_mismo_acceso_no_mezclan_aplicaciones(self):
+        publica = AplicacionPublica.objects.create(proceso=self.proceso)
+        url = publica.url_publica
+        primero = Client()
+        segundo = Client()
+        datos_base = {
+            'fecha_nacimiento': '2008-01-01',
+            'grupo': 'A',
+        }
+        primero.post(
+            url,
+            {**datos_base, 'nombre': 'Participante uno', 'numero_alumno': 'UNO'},
+        )
+        segundo.post(
+            url,
+            {**datos_base, 'nombre': 'Participante dos', 'numero_alumno': 'DOS'},
+        )
+
+        participantes = Participante.objects.filter(proceso=self.proceso)
+        self.assertEqual(participantes.count(), 2)
+        aplicaciones = AplicacionInstrumento.objects.filter(aplicacion_publica=publica)
+        self.assertEqual(aplicaciones.count(), 2)
+        self.assertEqual(aplicaciones.values('participante_id').distinct().count(), 2)
+
     def test_enlace_general_inicia_con_datos_y_reutiliza_participante(self):
         publica, _ = AplicacionPublica.objects.get_or_create(proceso=self.proceso)
         self.client.logout()

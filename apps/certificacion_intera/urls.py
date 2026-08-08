@@ -107,6 +107,11 @@ urlpatterns = [
         name='aplicacion_publica_proceso_estado',
     ),
     path(
+        'procesos/<int:proceso_id>/aplicacion-publica/codigo-qr.svg',
+        views.aplicacion_publica_proceso_qr_view,
+        name='aplicacion_publica_proceso_qr',
+    ),
+    path(
         'participantes/<int:participante_id>/',
         views.participante_detalle_view,
         name='participante_detalle',

@@ -1,10 +1,14 @@
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from functools import wraps
+from io import BytesIO
 
+import qrcode
+from qrcode.image.svg import SvgPathImage
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.http import HttpResponse
 from django.db import transaction
 from django.core.paginator import Paginator
 from django.db.models import Count, Q, Sum
@@ -916,6 +920,11 @@ def proceso_detalle_view(request, proceso_id):
     completos, total_participantes, progreso_bateria = _progreso_bateria(proceso)
     entrevistas_pendientes = _entrevistas_pendientes(participantes)
     aplicacion_publica_general = AplicacionPublica.objects.filter(proceso=proceso).first()
+    url_publica_general = (
+        request.build_absolute_uri(aplicacion_publica_general.url_publica)
+        if aplicacion_publica_general
+        else ''
+    )
     return render(
         request,
         'certificacion_intera/proceso_detalle.html',
@@ -933,6 +942,7 @@ def proceso_detalle_view(request, proceso_id):
             'configuraciones': configuraciones,
             'tarjetas_instrumento': tarjetas_instrumento,
             'aplicacion_publica_general': aplicacion_publica_general,
+            'url_publica_general': url_publica_general,
             'aplicaciones': aplicaciones[:12],
             'resultados': respondidas[:12],
             'entrevistas': entrevistas[:12],
@@ -980,11 +990,6 @@ def aplicacion_publica_proceso_generar_view(request, proceso_id):
             request,
             'Este proceso está cerrado y se encuentra disponible solo para consulta.',
         )
-    elif not _configuraciones_publicas(proceso):
-        messages.error(
-            request,
-            'Configura al menos un instrumento antes de generar la aplicación pública.',
-        )
     else:
         obtener_aplicacion_publica_proceso(proceso, request.user)
         messages.success(
@@ -994,6 +999,32 @@ def aplicacion_publica_proceso_generar_view(request, proceso_id):
     return redirect(
         f"{reverse('certificacion_intera:proceso_detalle', args=[proceso.id])}?tab=bateria",
     )
+
+
+@acceso_certificacion_intera_requerido
+
+
+def aplicacion_publica_proceso_qr_view(request, proceso_id):
+    proceso = _proceso(proceso_id)
+    publica = get_object_or_404(AplicacionPublica, proceso=proceso)
+    url_publica = request.build_absolute_uri(publica.url_publica)
+    imagen = qrcode.make(
+        url_publica,
+        image_factory=SvgPathImage,
+        box_size=10,
+        border=4,
+    )
+    contenido = BytesIO()
+    imagen.save(contenido)
+    respuesta = HttpResponse(
+        contenido.getvalue(),
+        content_type='image/svg+xml',
+    )
+    if request.GET.get('descargar') == '1':
+        respuesta['Content-Disposition'] = (
+            f'attachment; filename="acceso-intera-{proceso.id}.svg"'
+        )
+    return respuesta
 
 
 @acceso_certificacion_intera_requerido
@@ -1053,7 +1084,10 @@ def aplicacion_publica_proceso_view(request, publica):
         return render(
             request,
             'certificacion_intera/aplicacion_bateria_publica.html',
-            {'pantalla': 'inactiva'},
+            {
+                'pantalla': 'sin_instrumentos',
+                'proceso': proceso,
+            },
         )
     clave_sesion = _sesion_publica_clave(publica)
     participante_id = request.session.get(clave_sesion)
