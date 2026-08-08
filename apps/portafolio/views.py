@@ -1,8 +1,10 @@
 from functools import wraps
+from pathlib import Path
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.exceptions import PermissionDenied
+from django.http import FileResponse
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.db.models import Q
@@ -141,6 +143,33 @@ def documentos_view(request):
     if categoria: documentos = documentos.filter(categoria_id=categoria)
     from .models import CategoriaDocumento
     return render(request, 'portafolio/documentos.html', {'vista_actual': 'documentos', 'form': form, 'items': documentos, 'busqueda': busqueda, 'categoria_actual': categoria, 'categorias': CategoriaDocumento.objects.filter(activa=True)})
+
+
+@acceso_portafolio_requerido
+def documento_descargar_view(request, documento_id):
+    documento = get_object_or_404(Documento, id=documento_id)
+    archivo = documento.archivo
+    if not archivo or not archivo.name or not archivo.storage.exists(archivo.name):
+        return render(
+            request,
+            'portafolio/archivo_no_disponible.html',
+            {'documento': documento},
+            status=404,
+        )
+    try:
+        contenido = archivo.storage.open(archivo.name, 'rb')
+    except Exception:
+        return render(
+            request,
+            'portafolio/archivo_no_disponible.html',
+            {'documento': documento},
+            status=404,
+        )
+    return FileResponse(
+        contenido,
+        as_attachment=True,
+        filename=Path(archivo.name).name,
+    )
 @acceso_portafolio_requerido
 def plantillas_view(request): return _catalogo(request, PlantillaPDF, 'portafolio/catalogo.html', 'Plantillas PDF', 'plantillas', 'portafolio:plantillas', PlantillaPDFForm)
 @acceso_portafolio_requerido

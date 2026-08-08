@@ -86,7 +86,7 @@
                         </td>
 
                         <td>
-                            <a href="{{ item.archivo.url }}">
+                            <a href="{% url 'portafolio:documento_descargar' item.id %}">
                                 Descargar
                             </a>
                             <a href="{% url 'portafolio:eliminar' 'documento' item.id %}">

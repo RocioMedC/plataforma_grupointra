@@ -77,6 +77,11 @@ urlpatterns = [
         name='proceso_detalle',
     ),
     path(
+        'procesos/<int:proceso_id>/cerrar/',
+        views.proceso_cerrar_view,
+        name='proceso_cerrar',
+    ),
+    path(
         'procesos/<int:proceso_id>/bitacora/',
         views_extra.proceso_bitacora_view,
         name='proceso_bitacora',

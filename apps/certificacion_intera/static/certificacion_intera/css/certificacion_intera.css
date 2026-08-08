@@ -1168,3 +1168,11 @@ body {
     border-radius: 8px;
     background: #fff;
 }
+
+.intera-tabs .intera-tab-action {
+    margin-left: auto;
+    border: 1px solid #b4413b;
+    border-radius: 7px;
+    color: #9d342f;
+    font-weight: 700;
+}

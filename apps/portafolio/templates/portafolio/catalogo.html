@@ -13,7 +13,7 @@
 
     {% if es_instrumento %}
         <section class="card form importacion-instrumento">
-            <h2>Importar instrumento</h2>
+            <h2>Subir archivo</h2>
             <p>Sube un Excel estructurado para crear el documento origen, el instrumento, sus preguntas y su calculadora.</p>
             <form method="post" enctype="multipart/form-data">
                 {% csrf_token %}
@@ -25,7 +25,7 @@
                 {% if formulario_importacion.archivo.help_text %}
                     <small>{{ formulario_importacion.archivo.help_text }}</small>
                 {% endif %}
-                <button type="submit">Importar instrumento</button>
+                <button type="submit">Subir archivo e importar instrumento</button>
             </form>
         </section>
     {% endif %}
@@ -77,20 +77,6 @@
                                 <a href="{% url 'portafolio:preguntas' item.id %}">
                                     Preguntas →
                                 </a>
-                            </td>
-                        {% endif %}
-
-                        {% if es_instrumento and item.documento_origen %}
-                            <td>
-                                <form
-                                    method="post"
-                                    action="{% url 'portafolio:importar_preguntas' item.id %}"
-                                >
-                                    {% csrf_token %}
-                                    <button type="submit">
-                                        Importar preguntas del Excel
-                                    </button>
-                                </form>
                             </td>
                         {% endif %}
 

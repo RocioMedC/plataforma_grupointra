@@ -2,10 +2,10 @@
 
 import hashlib
 import json
+from io import BytesIO
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
-from django.core.files import File
+from django.core.files.base import ContentFile
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from openpyxl import load_workbook
@@ -156,19 +156,23 @@ def _tabla(filas, encabezado):
     return []
 
 
-def leer_excel(ruta):
-    ruta = Path(ruta)
-
+def leer_excel(origen):
+    nombre = Path(getattr(origen, 'name', origen)).name
     try:
-        contenido = ruta.read_bytes()
+        if hasattr(origen, 'read'):
+            origen.seek(0)
+            contenido = origen.read()
+            origen.seek(0)
+        else:
+            contenido = Path(origen).read_bytes()
         libro = load_workbook(
-            ruta,
+            BytesIO(contenido),
             read_only=True,
             data_only=False,
         )
     except Exception as error:
         raise ValidationError(
-            f'{ruta.name}: no fue posible leer el archivo.'
+            f'{nombre}: no fue posible leer el archivo.'
         ) from error
 
     faltantes = HOJAS_REQUERIDAS - set(libro.sheetnames)
@@ -176,7 +180,7 @@ def leer_excel(ruta):
     if faltantes:
         libro.close()
         raise ValidationError(
-            f'{ruta.name}: faltan hojas requeridas: '
+            f'{nombre}: faltan hojas requeridas: '
             f'{", ".join(sorted(faltantes))}.'
         )
 
@@ -213,7 +217,7 @@ def leer_excel(ruta):
     if not preguntas:
         libro.close()
         raise ValidationError(
-            f'{ruta.name}: PREGUNTAS no contiene filas.'
+            f'{nombre}: PREGUNTAS no contiene filas.'
         )
 
     if (
@@ -222,14 +226,29 @@ def leer_excel(ruta):
     ):
         libro.close()
         raise ValidationError(
-            f'{ruta.name}: CALCULADORA_SISTEMA requiere '
+            f'{nombre}: CALCULADORA_SISTEMA requiere '
             'clave_calculadora y version_regla.'
         )
 
+    estructura_para_huella = {
+        'instrumento': valores,
+        'preguntas': preguntas,
+        'calculadora': calculadora,
+        'casos': casos,
+    }
+    huella = hashlib.sha256(
+        json.dumps(
+            estructura_para_huella,
+            sort_keys=True,
+            ensure_ascii=False,
+            default=str,
+        ).encode('utf-8'),
+    ).hexdigest()
+
     datos = {
-        'ruta': ruta,
+        'nombre_archivo': nombre,
         'contenido': contenido,
-        'huella': hashlib.sha256(contenido).hexdigest(),
+        'huella': huella,
         'instrumento': valores,
         'preguntas': preguntas,
         'calculadora': calculadora,
@@ -523,15 +542,15 @@ def ejecutar_calculadora(
     }
 
 
-def importar(ruta, dry_run=False, nombre_archivo=None, cargado_por=None):
+def importar(origen, dry_run=False, nombre_archivo=None, cargado_por=None):
     datos = validar(
-        leer_excel(ruta)
+        leer_excel(origen)
     )
 
     primera = datos['preguntas'][0]
     clave = primera['instrumento_clave']
     version = str(primera['version'])
-    nombre_archivo = Path(nombre_archivo or datos['ruta'].name).name
+    nombre_archivo = Path(nombre_archivo or datos['nombre_archivo']).name
     definicion = _definicion(datos)
 
     estado = _estado_calculadora_por_instrumento(
@@ -593,24 +612,23 @@ def importar(ruta, dry_run=False, nombre_archivo=None, cargado_por=None):
         documento = documentos[0] if documentos else None
 
         if not documento:
-            with datos['ruta'].open('rb') as archivo:
-                documento = Documento(
-                    nombre=Path(nombre_archivo).stem,
-                    categoria=categoria,
-                    version=version,
-                    cargado_por=cargado_por,
-                    descripcion=(
-                        'Documento origen importado por Portafolio.'
-                    ),
-                )
+            documento = Documento(
+                nombre=Path(nombre_archivo).stem,
+                categoria=categoria,
+                version=version,
+                cargado_por=cargado_por,
+                descripcion=(
+                    'Documento origen importado por Portafolio.'
+                ),
+            )
 
-                documento.archivo.save(
-                    nombre_archivo,
-                    File(archivo),
-                    save=False,
-                )
+            documento.archivo.save(
+                nombre_archivo,
+                ContentFile(datos['contenido']),
+                save=False,
+            )
 
-                documento.save()
+            documento.save()
 
         instrumento = existente or Instrumento(
             clave=clave
@@ -731,17 +749,8 @@ def importar(ruta, dry_run=False, nombre_archivo=None, cargado_por=None):
 def importar_archivo_subido(archivo, cargado_por=None):
     """Entrega un archivo web al importador estructurado sin otro parser."""
     nombre_archivo = Path(archivo.name).name
-    sufijo = Path(nombre_archivo).suffix or '.xlsx'
-    temporal = NamedTemporaryFile(suffix=sufijo, delete=False)
-    ruta_temporal = Path(temporal.name)
-    try:
-        with temporal:
-            for fragmento in archivo.chunks():
-                temporal.write(fragmento)
-        return importar(
-            ruta_temporal,
-            nombre_archivo=nombre_archivo,
-            cargado_por=cargado_por,
-        )
-    finally:
-        ruta_temporal.unlink(missing_ok=True)
+    return importar(
+        archivo,
+        nombre_archivo=nombre_archivo,
+        cargado_por=cargado_por,
+    )

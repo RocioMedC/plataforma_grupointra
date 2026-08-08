@@ -234,6 +234,11 @@ class ImportacionInstrumentoWebTests(TestCase):
         self.assertIn('Lee cada frase', instrumento.instrucciones)
         self.assertEqual(instrumento.documento_origen.nombre, 'instrumento-web')
         self.assertEqual(instrumento.documento_origen.cargado_por, self.usuario)
+        self.assertTrue(
+            instrumento.documento_origen.archivo.storage.exists(
+                instrumento.documento_origen.archivo.name,
+            ),
+        )
         self.assertEqual(
             instrumento.importacion.metadatos['campos_contexto_requeridos'],
             ['fecha_nacimiento'],
@@ -303,6 +308,85 @@ class ImportacionInstrumentoWebTests(TestCase):
             ).exists()
         )
 
+    def test_catalogo_solo_presenta_el_importador_estructurado(self):
+        respuesta = self.client.get(reverse('portafolio:instrumentos'))
+
+        self.assertContains(respuesta, 'Subir archivo')
+        self.assertContains(respuesta, 'Subir archivo e importar instrumento')
+        self.assertNotContains(respuesta, 'Importar preguntas del Excel')
+        self.assertNotContains(
+            respuesta,
+            reverse('portafolio:importar_preguntas', args=[1]),
+        )
+
+
+@override_settings(
+    STORAGES={
+        'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+        'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+    },
+)
+class DescargaDocumentosTests(TestCase):
+    def setUp(self):
+        self.usuario = User.objects.create_user(
+            username='descarga-documentos',
+            password='secreto',
+        )
+        self.usuario.groups.add(
+            Group.objects.get_or_create(name='Certificación')[0],
+        )
+        self.client.force_login(self.usuario)
+
+    def test_descarga_protegida_usa_storage_y_nombre_original(self):
+        documento = Documento.objects.create(
+            nombre='Documento descargable',
+            archivo=SimpleUploadedFile('reporte seguro.xlsx', b'contenido'),
+        )
+
+        respuesta = self.client.get(
+            reverse('portafolio:documento_descargar', args=[documento.id]),
+        )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertIn('attachment;', respuesta['Content-Disposition'])
+        self.assertIn('reporte_seguro', respuesta['Content-Disposition'])
+        self.assertNotIn('/media/', respuesta['Content-Disposition'])
+        respuesta.close()
+        documento.archivo.delete(save=False)
+
+    def test_archivo_faltante_devuelve_404_controlado(self):
+        documento = Documento.objects.create(
+            nombre='Documento perdido',
+            archivo=SimpleUploadedFile('perdido.xlsx', b'contenido'),
+        )
+        documento.archivo.storage.delete(documento.archivo.name)
+
+        respuesta = self.client.get(
+            reverse('portafolio:documento_descargar', args=[documento.id]),
+        )
+
+        self.assertEqual(respuesta.status_code, 404)
+        self.assertContains(
+            respuesta,
+            'se encuentra actualmente en el almacenamiento configurado',
+            status_code=404,
+        )
+
+    def test_documentos_enlaza_la_vista_protegida_y_no_media_url(self):
+        documento = Documento.objects.create(
+            nombre='Documento listado',
+            archivo=SimpleUploadedFile('listado.xlsx', b'contenido'),
+        )
+
+        respuesta = self.client.get(reverse('portafolio:documentos'))
+
+        self.assertContains(
+            respuesta,
+            reverse('portafolio:documento_descargar', args=[documento.id]),
+        )
+        self.assertNotContains(respuesta, documento.archivo.url)
+        documento.archivo.delete(save=False)
+
 
 @override_settings(
     STORAGES={
@@ -326,14 +410,18 @@ class EliminacionPortafolioTests(TestCase):
 
     def test_documento_huerfano_se_elimina_solo_por_post(self):
         documento = self._documento()
+        almacenamiento = documento.archivo.storage
+        nombre_archivo = documento.archivo.name
         url = reverse('portafolio:eliminar', args=['documento', documento.id])
 
         self.assertEqual(self.client.get(url).status_code, 200)
         self.assertTrue(Documento.objects.filter(pk=documento.pk).exists())
-        respuesta = self.client.post(url)
+        with self.captureOnCommitCallbacks(execute=True):
+            respuesta = self.client.post(url)
 
         self.assertRedirects(respuesta, reverse('portafolio:documentos'))
         self.assertFalse(Documento.objects.filter(pk=documento.pk).exists())
+        self.assertFalse(almacenamiento.exists(nombre_archivo))
 
     def test_documento_usado_se_protege_sin_error_servidor(self):
         documento = self._documento()
