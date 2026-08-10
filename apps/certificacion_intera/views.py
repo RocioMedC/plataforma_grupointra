@@ -56,6 +56,9 @@ from apps.portafolio.models import (
     PreguntaInstrumento,
 )
 from apps.portafolio.services_calificacion import (
+    _interpretacion_rosenberg,
+    _prioridad_plutchik,
+    ADVERTENCIA_PLUTCHIK_PRIORITARIA,
     calcular_resultado,
     campos_contexto_requeridos,
     obtener_revision_calculadora,
@@ -1998,10 +2001,27 @@ def _detalle_resultado_presentacion(aplicacion):
             if (datos := detalle.get(nombre))
         ]
     if clave == 'rse-autoestima':
+        clasificacion = detalle.get('clasificacion_orientativa')
+        observacion = detalle.get('observacion_orientativa')
+        if not clasificacion:
+            total_guardado = detalle.get('puntaje_total', aplicacion.puntaje_total)
+            if total_guardado is not None:
+                clasificacion, observacion = _interpretacion_rosenberg(total_guardado)
+            else:
+                clasificacion = 'Sin resultado disponible'
+                observacion = 'No hay un puntaje persistido para interpretar'
         return [
             {'nombre': 'Reactivos directos', 'valor': detalle.get('puntaje_directos', 0)},
             {'nombre': 'Reactivos inversos', 'valor': detalle.get('puntaje_inversos', 0)},
             {'nombre': 'Puntaje total', 'valor': detalle.get('puntaje_total', 0)},
+            {
+                'nombre': 'Clasificación orientativa',
+                'valor': clasificacion,
+            },
+            {
+                'nombre': 'Observación',
+                'valor': observacion,
+            },
         ]
     if clave == 'scid-ii-adolescentes':
         filas = [
@@ -2019,6 +2039,10 @@ def _detalle_resultado_presentacion(aplicacion):
         return filas
     if clave == 'ersp-plutchik-adolescentes':
         criticos = detalle.get('reactivos_criticos_afirmativos') or []
+        prioridad = _prioridad_plutchik(
+            detalle.get('puntaje_total', aplicacion.puntaje_total or 0),
+            criticos,
+        )
         return [
             {'nombre': 'Puntaje total', 'valor': detalle.get('puntaje_total', 0)},
             {
@@ -2031,7 +2055,19 @@ def _detalle_resultado_presentacion(aplicacion):
             },
             {
                 'nombre': 'Revisión prioritaria',
-                'valor': 'Sí' if detalle.get('revision_prioritaria') else 'No',
+                'valor': 'Sí' if prioridad['requiere_atencion_mismo_dia'] else 'No',
+            },
+            {
+                'nombre': 'Interpretación orientativa',
+                'valor': prioridad['interpretacion_orientativa'],
+            },
+            {
+                'nombre': 'Acción requerida',
+                'valor': (
+                    'Evaluación clínica individual y canalización el mismo día'
+                    if prioridad['requiere_atencion_mismo_dia']
+                    else 'Continuar con revisión profesional conforme al protocolo'
+                ),
             },
         ]
     return [
@@ -2251,6 +2287,19 @@ def resultado_view(request, aplicacion_id):
             mensaje_resultado_no_disponible += (
                 ' Las respuestas quedan disponibles para valoración profesional.'
             )
+    advertencia_prioritaria = (aplicacion.resultado_detalle or {}).get(
+        'advertencia_prioritaria',
+        '',
+    )
+    if aplicacion.instrumento.clave == 'ersp-plutchik-adolescentes':
+        detalle = aplicacion.resultado_detalle or {}
+        prioridad = _prioridad_plutchik(
+            detalle.get('puntaje_total', aplicacion.puntaje_total or 0),
+            detalle.get('reactivos_criticos_afirmativos') or [],
+        )
+        if prioridad['requiere_atencion_mismo_dia']:
+            advertencia_prioritaria = ADVERTENCIA_PLUTCHIK_PRIORITARIA
+
     return render(
         request,
         'certificacion_intera/resultado.html',
@@ -2262,10 +2311,7 @@ def resultado_view(request, aplicacion_id):
                 aplicacion.revision_calculadora
             ),
             'advertencia_prioritaria': (
-                (aplicacion.resultado_detalle or {}).get(
-                    'advertencia_prioritaria',
-                    '',
-                )
+                advertencia_prioritaria
             ),
             'mensaje_resultado_no_disponible': mensaje_resultado_no_disponible,
             'detalle_presentacion': _detalle_resultado_presentacion(aplicacion),

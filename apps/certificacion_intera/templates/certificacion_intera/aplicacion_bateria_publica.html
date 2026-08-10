@@ -1,3 +1,4 @@
+{% load intera_publica %}
 <!doctype html>
 <html lang="es">
 <head>
@@ -167,7 +168,7 @@
             </p>
 
             <h1>
-                {{ instrumento.nombre }}
+                {{ instrumento|nombre_publico_intera }}
             </h1>
 
             <p>
@@ -205,7 +206,7 @@
             </p>
 
             <h1>
-                {{ instrumento.nombre }}
+                {{ instrumento|nombre_publico_intera }}
             </h1>
 
             <p>
@@ -232,7 +233,7 @@
             </p>
 
             <h1>
-                {{ instrumento.nombre }}
+                {{ instrumento|nombre_publico_intera }}
             </h1>
 
             {% if error %}
