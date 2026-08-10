@@ -8,7 +8,7 @@
     {% if mensaje_bloqueo %}
         <section class="card form">
             <p class="error">{{ mensaje_bloqueo }}</p>
-            <p><a href="{% url volver %}">Volver</a></p>
+            <p><a class="btn btn-secondary" href="{% url volver %}">Volver</a></p>
         </section>
     {% else %}
     <section class="card form">
@@ -17,7 +17,7 @@
         <form method="post">
             {% csrf_token %}
 
-            <button>Eliminar</button>
+            <button class="btn-danger">Eliminar</button>
         </form>
     </section>
     {% endif %}

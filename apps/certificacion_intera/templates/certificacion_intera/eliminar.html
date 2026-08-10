@@ -1,7 +1,7 @@
 {% extends 'certificacion_intera/_base.html' %}
 
 {% block titulo %}
-    Eliminar participante
+    {{ titulo_eliminacion }}
 {% endblock %}
 
 {% block contenido %}
@@ -11,25 +11,32 @@
         </h2>
 
         <p>
-            ¿Deseas eliminar a {{ objeto }}? También se eliminarán sus
-            registros asociados.
+            ¿Deseas eliminar “{{ objeto }}”? {{ mensaje_eliminacion }}
         </p>
 
-        <form method="post">
-            {% csrf_token %}
+        {% if not eliminacion_bloqueada %}
+            <form method="post">
+                {% csrf_token %}
 
+                <div class="intera-form-actions">
+                    <a class="intera-btn intera-btn-secondary" href="{{ volver_url }}">
+                        Cancelar
+                    </a>
+
+                    <button
+                        class="intera-btn intera-btn-danger"
+                        type="submit"
+                    >
+                        Eliminar
+                    </button>
+                </div>
+            </form>
+        {% else %}
             <div class="intera-form-actions">
-                <a href="{{ volver_url }}">
-                    Cancelar
+                <a class="intera-btn intera-btn-secondary" href="{{ volver_url }}">
+                    Volver
                 </a>
-
-                <button
-                    class="intera-btn"
-                    type="submit"
-                >
-                    Eliminar
-                </button>
             </div>
-        </form>
+        {% endif %}
     </section>
 {% endblock %}

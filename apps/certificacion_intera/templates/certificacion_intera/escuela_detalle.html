@@ -6,19 +6,19 @@
 
 {% block contenido %}
     <div class="intera-stack">
-        <div class="intera-crumbs">
-            <a href="{% url 'certificacion_intera:escuelas' %}">
-                Escuelas
-            </a>
-            /
-            {{ escuela.nombre }}
-        </div>
+        <div class="intera-page-nav">
+            <div class="intera-crumbs">
+                <a href="{% url 'certificacion_intera:escuelas' %}">
+                    Escuelas
+                </a>
+                <span aria-hidden="true">/</span>
+                <span>{{ escuela.nombre }}</span>
+            </div>
 
-        <p>
-            <a href="{{ return_url }}">
+            <a class="intera-back-link" href="{{ return_url }}">
                 ← Volver a escuelas
             </a>
-        </p>
+        </div>
 
         <section class="intera-card intera-card-pad">
             <div class="intera-card-head">

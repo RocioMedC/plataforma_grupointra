@@ -171,11 +171,17 @@ class ImportacionInstrumentoWebTests(TestCase):
         self.documentos_iniciales = Documento.objects.count()
         self.instrumentos_iniciales = Instrumento.objects.count()
 
-    def _excel_estructurado(self):
+    def _excel_estructurado(
+        self,
+        clave='instrumento-web',
+        nombre_archivo='instrumento-web.xlsx',
+        segunda_clave=None,
+    ):
         libro = Workbook()
         instrumento = libro.active
         instrumento.title = 'INSTRUMENTO'
         instrumento.append(['Campo', 'Valor'])
+        instrumento.append(['instrumento_clave', clave])
         instrumento.append(['Población objetivo', 'Adolescentes'])
         instrumento.append(['Instrucciones', None])
         instrumento.append(['Lee cada frase y elige la respuesta más adecuada.', None])
@@ -188,13 +194,13 @@ class ImportacionInstrumentoWebTests(TestCase):
             'requerida', 'visibilidad',
         ])
         preguntas.append([
-            'instrumento-web', 'Instrumento web', 'Adolescentes', '1.0',
+            clave, 'Instrumento web', 'Adolescentes', '1.0',
             'Adolescentes', 14, 20, 1, 'P-01', 'Primera pregunta',
             'si_no', '[{"valor":"si","etiqueta":"Sí"},{"valor":"no","etiqueta":"No"}]',
             True, None,
         ])
         preguntas.append([
-            'instrumento-web', 'Instrumento web', 'Adolescentes', '1.0',
+            segunda_clave or clave, 'Instrumento web', 'Adolescentes', '1.0',
             'Adolescentes', 14, 20, 2, 'P-02', 'Explica tu respuesta',
             'texto_libre', None, False,
             '{"pregunta_clave":"P-01","operador":"igual","valor":"si"}',
@@ -202,7 +208,8 @@ class ImportacionInstrumentoWebTests(TestCase):
 
         calculadora = libro.create_sheet('CALCULADORA_SISTEMA')
         calculadora.append(['Campo', 'Valor'])
-        calculadora.append(['clave_calculadora', 'calc-instrumento-web-v1'])
+        calculadora.append(['instrumento_clave', clave])
+        calculadora.append(['clave_calculadora', f'calc-{clave}-v1'])
         calculadora.append(['version_regla', '1.0'])
         calculadora.append(['estado_calculadora', 'ORIENTATIVA'])
         calculadora.append(['requiere_respuestas_completas', True])
@@ -213,7 +220,7 @@ class ImportacionInstrumentoWebTests(TestCase):
         contenido = BytesIO()
         libro.save(contenido)
         return SimpleUploadedFile(
-            'instrumento-web.xlsx',
+            nombre_archivo,
             contenido.getvalue(),
             content_type=(
                 'application/vnd.openxmlformats-officedocument.'
@@ -274,6 +281,77 @@ class ImportacionInstrumentoWebTests(TestCase):
         self.assertEqual(PreguntaInstrumento.objects.filter(instrumento=instrumento).count(), 2)
         self.assertEqual(CalculadoraInstrumento.objects.filter(instrumento=instrumento).count(), 1)
 
+    def test_claves_oficiales_provienen_del_excel_y_no_del_nombre_archivo(self):
+        casos = (
+            ('dass-21-adolescentes', 'DASS.xlsx'),
+            ('rse-autoestima', 'archivo-renombrado-rosenberg.xlsx'),
+            ('scid-ii-adolescentes', 'evaluacion-escolar.xlsx'),
+            ('ersp-plutchik-adolescentes', 'riesgo.xlsx'),
+        )
+        for clave, nombre_archivo in casos:
+            with self.subTest(clave=clave):
+                respuesta = self.client.post(
+                    reverse('portafolio:instrumentos'),
+                    {
+                        'accion': 'importar',
+                        'archivo': self._excel_estructurado(
+                            clave=clave,
+                            nombre_archivo=nombre_archivo,
+                        ),
+                    },
+                )
+                self.assertEqual(respuesta.status_code, 302)
+                instrumento = Instrumento.objects.get(clave=clave)
+                self.assertEqual(instrumento.clave, clave)
+                self.assertTrue(
+                    CalculadoraInstrumento.objects.filter(
+                        instrumento=instrumento,
+                        clave=f'calc-{clave}-v1',
+                    ).exists(),
+                )
+
+        self.client.post(
+            reverse('portafolio:instrumentos'),
+            {
+                'accion': 'importar',
+                'archivo': self._excel_estructurado(
+                    clave='dass-21-adolescentes',
+                    nombre_archivo='escuela-dass.xlsx',
+                ),
+            },
+        )
+        self.assertEqual(
+            Instrumento.objects.filter(clave='dass-21-adolescentes').count(),
+            1,
+        )
+
+    def test_claves_inconsistentes_bloquean_importacion_sin_datos_parciales(self):
+        documentos_antes = Documento.objects.count()
+        instrumentos_antes = Instrumento.objects.count()
+        respuesta = self.client.post(
+            reverse('portafolio:instrumentos'),
+            {
+                'accion': 'importar',
+                'archivo': self._excel_estructurado(
+                    clave='clave-correcta',
+                    segunda_clave='clave-distinta',
+                ),
+            },
+        )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(
+            respuesta,
+            'las claves de instrumento declaradas en el Excel no coinciden',
+        )
+        self.assertEqual(Documento.objects.count(), documentos_antes)
+        self.assertEqual(Instrumento.objects.count(), instrumentos_antes)
+        self.assertFalse(
+            CalculadoraInstrumento.objects.filter(
+                clave='calc-clave-correcta-v1',
+            ).exists(),
+        )
+
     def test_excel_invalido_muestra_error_y_no_crea_registros(self):
         archivo = SimpleUploadedFile(
             'invalido.xlsx',
@@ -317,6 +395,11 @@ class ImportacionInstrumentoWebTests(TestCase):
         self.assertNotContains(
             respuesta,
             reverse('portafolio:importar_preguntas', args=[1]),
+        )
+        self.assertContains(respuesta, 'Crear manualmente')
+        self.assertContains(
+            respuesta,
+            'la clave se captura manualmente',
         )
 
 

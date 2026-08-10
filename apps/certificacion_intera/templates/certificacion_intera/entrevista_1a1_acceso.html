@@ -54,44 +54,45 @@
             {% else %}
                 <form
                     method="post"
-                    class="intera-form"
+                    class="intera-form intera-identity-form"
                 >
                     {% csrf_token %}
 
-                    <label>
-                        Número de alumno
+                    <div class="intera-form-grid intera-identity-grid">
+                        <label class="intera-field">
+                            <span>Número de alumno</span>
+                            <input
+                                name="numero_alumno"
+                                required
+                            >
+                        </label>
 
-                        <input
-                            name="numero_alumno"
-                            required
+                        <label class="intera-field">
+                            <span>Nombre completo</span>
+                            <input
+                                name="nombre"
+                                required
+                            >
+                        </label>
+
+                        <label class="intera-field">
+                            <span>Fecha de nacimiento</span>
+                            <input
+                                type="date"
+                                name="fecha_nacimiento"
+                                required
+                            >
+                        </label>
+                    </div>
+
+                    <div class="intera-form-actions">
+                        <button
+                            class="intera-btn"
+                            type="submit"
                         >
-                    </label>
-
-                    <label>
-                        Nombre completo
-
-                        <input
-                            name="nombre"
-                            required
-                        >
-                    </label>
-
-                    <label>
-                        Fecha de nacimiento
-
-                        <input
-                            type="date"
-                            name="fecha_nacimiento"
-                            required
-                        >
-                    </label>
-
-                    <button
-                        class="intera-btn"
-                        type="submit"
-                    >
-                        Confirmar identidad
-                    </button>
+                            Confirmar identidad
+                        </button>
+                    </div>
                 </form>
             {% endif %}
         </section>
