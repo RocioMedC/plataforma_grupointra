@@ -453,7 +453,8 @@ body {
     grid-column: 1/-1;
 }
 
-.intera-field label {
+.intera-field label,
+.intera-field>span {
     font-size: 12px;
     font-weight: 600;
     color: #4a5568;
@@ -1003,9 +1004,125 @@ body {
     background: #fff8f7;
 }
 
+.intera-result-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit,minmax(190px,1fr));
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.intera-result-item {
+    padding: 13px 14px;
+    border: 1px solid #e4e8f0;
+    border-radius: 10px;
+    background: #fafbfe;
+}
+
+.intera-result-item b,
+.intera-result-item span {
+    display: block;
+}
+
+.intera-result-item b {
+    margin-bottom: 5px;
+    color: #263754;
+    font-size: 13px;
+}
+
+.intera-result-item span {
+    color: #68758b;
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+
+.intera-btn-danger {
+    background: #fff;
+    color: #a23f38;
+    border: 1px solid #e4b8b4;
+}
+
+.intera-btn-danger:hover {
+    background: #fff5f4;
+}
+
 .intera-btn-small {
     padding: 7px 10px;
     font-size: 12px;
+}
+
+.intera-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 18px;
+    row-gap: 8px;
+}
+
+.intera-list-action {
+    color: #5b5fae;
+    font-size: 12.5px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.intera-list-action:hover {
+    text-decoration: underline;
+}
+
+.intera-table .intera-list-action-danger {
+    color: #a04b45;
+}
+
+.intera-table td:last-child .intera-actions {
+    justify-content: flex-end;
+}
+
+@media (max-width: 650px) {
+    .intera-table td:last-child .intera-actions {
+        justify-content: flex-end;
+    }
+}
+
+.intera-identity-form {
+    max-width: none;
+    padding: 24px 0 0;
+}
+
+.intera-identity-grid {
+    grid-template-columns: repeat(3,minmax(0,1fr));
+}
+
+.intera-page-nav {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.intera-crumbs {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.intera-back-link {
+    font-size: 13px;
+}
+
+@media (max-width: 800px) {
+    .intera-identity-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .intera-identity-form .intera-form-actions {
+        justify-content: stretch;
+    }
+
+    .intera-identity-form .intera-btn {
+        width: 100%;
+    }
 }
 
 .proceso-acciones-encabezado {

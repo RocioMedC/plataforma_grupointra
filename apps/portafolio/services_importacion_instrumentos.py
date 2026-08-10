@@ -261,6 +261,7 @@ def leer_excel(origen):
 
 def validar(datos):
     preguntas = datos['preguntas']
+    nombre_archivo = datos['nombre_archivo']
     claves = set()
     ordenes = set()
 
@@ -279,25 +280,25 @@ def validar(datos):
 
         if not clave or clave in claves:
             raise ValidationError(
-                f'{datos["ruta"].name}: PREGUNTAS fila {numero}, '
+                f'{nombre_archivo}: PREGUNTAS fila {numero}, '
                 'clave duplicada o vacía.'
             )
 
         if not isinstance(orden, int) or orden in ordenes:
             raise ValidationError(
-                f'{datos["ruta"].name}: PREGUNTAS fila {numero}, '
+                f'{nombre_archivo}: PREGUNTAS fila {numero}, '
                 'orden duplicado o inválido.'
             )
 
         if not texto:
             raise ValidationError(
-                f'{datos["ruta"].name}: PREGUNTAS fila {numero}, '
+                f'{nombre_archivo}: PREGUNTAS fila {numero}, '
                 'texto vacío.'
             )
 
         if tipo not in TIPOS:
             raise ValidationError(
-                f'{datos["ruta"].name}: PREGUNTAS fila {numero}, '
+                f'{nombre_archivo}: PREGUNTAS fila {numero}, '
                 f'tipo no soportado: {tipo}.'
             )
 
@@ -307,7 +308,7 @@ def validar(datos):
             )
         except json.JSONDecodeError as error:
             raise ValidationError(
-                f'{datos["ruta"].name}: PREGUNTAS fila {numero}, '
+                f'{nombre_archivo}: PREGUNTAS fila {numero}, '
                 'opciones_json inválido.'
             ) from error
 
@@ -321,7 +322,7 @@ def validar(datos):
             )
         ):
             raise ValidationError(
-                f'{datos["ruta"].name}: PREGUNTAS fila {numero}, '
+                f'{nombre_archivo}: PREGUNTAS fila {numero}, '
                 'opciones_json inválido.'
             )
 
@@ -337,12 +338,43 @@ def validar(datos):
     ):
         if not primera.get(campo):
             raise ValidationError(
-                f'{datos["ruta"].name}: PREGUNTAS requiere {campo}.'
+                f'{nombre_archivo}: PREGUNTAS requiere {campo}.'
             )
+
+    clave_instrumento = str(primera['instrumento_clave'])
+    claves_preguntas = {
+        str(pregunta.get('instrumento_clave') or '')
+        for pregunta in preguntas
+    }
+    clave_metadatos = _valor_metadato(
+        datos['instrumento'],
+        'instrumento_clave',
+        'clave del instrumento',
+    )
+    clave_calculadora = datos['calculadora'].get('instrumento_clave')
+    claves_casos = {
+        str(caso.get('instrumento_clave'))
+        for caso in datos['casos']
+        if caso.get('instrumento_clave') not in (None, '')
+    }
+    claves_declaradas = (
+        claves_preguntas
+        | claves_casos
+        | {
+            str(clave)
+            for clave in (clave_metadatos, clave_calculadora)
+            if clave not in (None, '')
+        }
+    )
+    if claves_declaradas != {clave_instrumento}:
+        raise ValidationError(
+            f'{nombre_archivo}: las claves de instrumento declaradas en el Excel no coinciden. '
+            f'Todas deben ser “{clave_instrumento}”.',
+        )
 
     if str(datos['calculadora']['version_regla']) != str(primera['version']):
         raise ValidationError(
-            f'{datos["ruta"].name}: version_regla debe coincidir con la versión del instrumento.'
+            f'{nombre_archivo}: version_regla debe coincidir con la versión del instrumento.'
         )
 
     return datos

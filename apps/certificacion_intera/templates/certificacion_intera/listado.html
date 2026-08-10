@@ -37,11 +37,20 @@
                                     </td>
 
                                     <td>
+                                        <div class="intera-actions">
                                         <a
+                                            class="intera-list-action"
                                             href="{% url 'certificacion_intera:proceso_detalle' elemento.id %}"
                                         >
                                             Abrir
                                         </a>
+                                        <a
+                                            class="intera-list-action intera-list-action-danger"
+                                            href="{% url 'certificacion_intera:proceso_eliminar' elemento.id %}"
+                                        >
+                                            Eliminar
+                                        </a>
+                                        </div>
                                     </td>
 
                                 {% elif tipo_listado == 'participantes' %}
@@ -57,11 +66,14 @@
                                     </td>
 
                                     <td>
+                                        <div class="intera-actions">
                                         <a
+                                            class="intera-list-action"
                                             href="{% url 'certificacion_intera:participante_detalle' elemento.id %}"
                                         >
                                             Abrir
                                         </a>
+                                        </div>
                                     </td>
 
                                 {% elif tipo_listado == 'entrevistas' %}
@@ -77,11 +89,14 @@
                                     </td>
 
                                     <td>
+                                        <div class="intera-actions">
                                         <a
+                                            class="intera-list-action"
                                             href="{% url 'certificacion_intera:participante_detalle' elemento.participante_id %}"
                                         >
                                             Abrir
                                         </a>
+                                        </div>
                                     </td>
 
                                 {% elif tipo_listado == 'seguimiento' %}
@@ -97,11 +112,14 @@
                                     </td>
 
                                     <td>
+                                        <div class="intera-actions">
                                         <a
+                                            class="intera-list-action"
                                             href="{% url 'certificacion_intera:participante_detalle' elemento.participante_id %}"
                                         >
                                             Abrir
                                         </a>
+                                        </div>
                                     </td>
 
                                 {% else %}
@@ -117,11 +135,14 @@
                                     </td>
 
                                     <td>
+                                        <div class="intera-actions">
                                         <a
+                                            class="intera-list-action"
                                             href="{% url 'certificacion_intera:configuracion' elemento.proceso_id %}"
                                         >
                                             Abrir
                                         </a>
+                                        </div>
                                     </td>
                                 {% endif %}
                             </tr>

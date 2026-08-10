@@ -31,7 +31,11 @@
     {% endif %}
 
     <section class="card form">
-        <h2>Nuevo registro</h2>
+        <h2>Crear manualmente</h2>
+
+        <p>
+            Uso administrativo: en este formulario la clave se captura manualmente.
+        </p>
 
         <form
             method="post"
@@ -54,7 +58,7 @@
     <section class="card">
         <h2>Catálogo</h2>
 
-        <table>
+        <div class="table-wrap"><table>
             <tbody>
                 {% for item in items %}
                     <tr>
@@ -73,27 +77,27 @@
                         </td>
 
                         {% if item.preguntas %}
-                            <td>
-                                <a href="{% url 'portafolio:preguntas' item.id %}">
+                            <td><div class="actions">
+                                <a class="list-action" href="{% url 'portafolio:preguntas' item.id %}">
                                     Preguntas →
                                 </a>
-                            </td>
+                            </div></td>
                         {% endif %}
 
                         {% if item.archivo %}
-                            <td>
-                                <a href="{{ item.archivo.url }}">
+                            <td><div class="actions">
+                                <a class="list-action" href="{{ item.archivo.url }}">
                                     Descargar
                                 </a>
-                            </td>
+                            </div></td>
                         {% endif %}
 
                         {% if es_instrumento %}
-                            <td>
-                                <a href="{% url 'portafolio:eliminar' 'instrumento' item.id %}">
+                            <td><div class="actions">
+                                <a class="list-action list-action-danger" href="{% url 'portafolio:eliminar' 'instrumento' item.id %}">
                                     Eliminar instrumento
                                 </a>
-                            </td>
+                            </div></td>
                         {% endif %}
                     </tr>
                 {% empty %}
@@ -102,6 +106,6 @@
                     </tr>
                 {% endfor %}
             </tbody>
-        </table>
+        </table></div>
     </section>
 {% endblock %}

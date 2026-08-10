@@ -1,8 +1,9 @@
 from django.contrib.auth.models import Group, User
+from django.db.models.deletion import ProtectedError
 from django.test import Client, TestCase
 from django.test.utils import override_settings
 from django.urls import reverse
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone as datetime_timezone
 from io import BytesIO
 import re
 from unittest.mock import patch
@@ -36,6 +37,8 @@ from apps.portafolio.models import (
 from apps.portafolio.services_entrevista import CLAVE_ENTREVISTA
 from apps.portafolio.services_calificacion import (
     ADVERTENCIA_RESULTADO_ORIENTATIVO,
+    calcular_resultado,
+    validar_variante_por_edad,
 )
 from . import consultorio_web
 
@@ -2190,3 +2193,449 @@ class CierreProcesoTests(TestCase):
         self.assertEqual(qr.status_code, 200)
         self.publica.refresh_from_db()
         self.assertIsNotNone(self.publica.token)
+
+
+@override_settings(
+    STORAGES={
+        'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+        'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+    },
+)
+class EliminacionSeguraTests(TestCase):
+
+    def setUp(self):
+        self.usuario = User.objects.create_user(username='elimina-intera', password='secreto')
+        self.usuario.groups.add(Group.objects.get_or_create(name='Certificación')[0])
+        self.client.force_login(self.usuario)
+        self.escuela = Escuela.objects.create(
+            nombre='Escuela con proceso',
+            director='Dirección',
+            cantidad_total_alumnos=20,
+            estado='Coahuila',
+            municipio='Saltillo',
+        )
+        self.proceso = ProcesoCertificacion.objects.create(
+            escuela=self.escuela,
+            nombre='Proceso eliminable',
+            ciclo_escolar='2026-2027',
+            fecha_inicio=date.today(),
+        )
+        self.instrumento = Instrumento.objects.create(
+            nombre='Instrumento compartido',
+            clave='instrumento-compartido-eliminacion',
+        )
+        self.pregunta = PreguntaInstrumento.objects.create(
+            instrumento=self.instrumento,
+            orden=1,
+            texto='Pregunta que debe conservarse',
+        )
+        ConfiguracionInstrumento.objects.create(
+            proceso=self.proceso,
+            instrumento=self.instrumento,
+            orden=1,
+        )
+        self.participante = Participante.objects.create(
+            proceso=self.proceso,
+            nombre='Participante dependiente',
+            numero_alumno='E-1',
+        )
+        self.aplicacion = AplicacionInstrumento.objects.create(
+            proceso=self.proceso,
+            participante=self.participante,
+            instrumento=self.instrumento,
+        )
+        RespuestaInstrumento.objects.create(
+            aplicacion=self.aplicacion,
+            pregunta=self.pregunta,
+            valor='respuesta',
+        )
+
+    def test_proceso_se_elimina_por_post_y_conserva_portafolio(self):
+        url = reverse('certificacion_intera:proceso_eliminar', args=[self.proceso.id])
+        respuesta = self.client.post(url)
+
+        self.assertRedirects(respuesta, reverse('certificacion_intera:procesos'))
+        self.assertFalse(ProcesoCertificacion.objects.filter(id=self.proceso.id).exists())
+        self.assertFalse(Participante.objects.filter(id=self.participante.id).exists())
+        self.assertTrue(Instrumento.objects.filter(id=self.instrumento.id).exists())
+        self.assertTrue(PreguntaInstrumento.objects.filter(id=self.pregunta.id).exists())
+
+    def test_get_solo_muestra_confirmacion_con_csrf(self):
+        url = reverse('certificacion_intera:proceso_eliminar', args=[self.proceso.id])
+        respuesta = self.client.get(url)
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'Eliminar proceso')
+        self.assertContains(respuesta, 'csrfmiddlewaretoken')
+        self.assertTrue(ProcesoCertificacion.objects.filter(id=self.proceso.id).exists())
+
+    def test_escuela_sin_procesos_puede_eliminarse(self):
+        escuela = Escuela.objects.create(
+            nombre='Escuela vacía', director='Dirección', cantidad_total_alumnos=1,
+            estado='Coahuila', municipio='Saltillo',
+        )
+        respuesta = self.client.post(
+            reverse('certificacion_intera:escuela_eliminar', args=[escuela.id]),
+        )
+
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertFalse(Escuela.objects.filter(id=escuela.id).exists())
+
+    def test_escuela_con_procesos_se_bloquea_sin_cascada(self):
+        url = reverse('certificacion_intera:escuela_eliminar', args=[self.escuela.id])
+        confirmacion = self.client.get(url)
+        respuesta = self.client.post(url, follow=True)
+
+        self.assertContains(confirmacion, 'no puede eliminarse')
+        self.assertNotContains(confirmacion, 'intera-btn intera-btn-danger')
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'tiene procesos de certificación asociados')
+        self.assertTrue(Escuela.objects.filter(id=self.escuela.id).exists())
+        self.assertTrue(ProcesoCertificacion.objects.filter(id=self.proceso.id).exists())
+
+    def test_usuario_sin_permiso_no_puede_eliminar(self):
+        usuario = User.objects.create_user(username='sin-permiso', password='secreto')
+        cliente = Client()
+        cliente.force_login(usuario)
+
+        respuesta = cliente.post(
+            reverse('certificacion_intera:proceso_eliminar', args=[self.proceso.id]),
+        )
+
+        self.assertEqual(respuesta.status_code, 403)
+        self.assertTrue(ProcesoCertificacion.objects.filter(id=self.proceso.id).exists())
+
+    def test_relacion_protegida_muestra_error_amigable(self):
+        url = reverse('certificacion_intera:proceso_eliminar', args=[self.proceso.id])
+        with patch.object(
+            ProcesoCertificacion,
+            'delete',
+            side_effect=ProtectedError('protegido', []),
+        ):
+            respuesta = self.client.post(url, follow=True)
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'registros protegidos')
+        self.assertTrue(ProcesoCertificacion.objects.filter(id=self.proceso.id).exists())
+
+
+@override_settings(
+    STORAGES={
+        'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+        'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+    },
+)
+class CalculoDASSAdolescenteInteraTests(TestCase):
+
+    def setUp(self):
+        self.usuario = User.objects.create_user(username='resultado-dass', password='secreto')
+        self.usuario.groups.add(Group.objects.get_or_create(name='Certificación')[0])
+        self.client.force_login(self.usuario)
+        escuela = Escuela.objects.create(
+            nombre='Escuela DASS', director='Dirección', cantidad_total_alumnos=20,
+            estado='Coahuila', municipio='Saltillo',
+        )
+        self.proceso = ProcesoCertificacion.objects.create(
+            escuela=escuela,
+            ciclo_escolar='DASS-2026',
+            fecha_inicio=date(2024, 1, 1),
+        )
+        self.instrumento = Instrumento.objects.create(
+            nombre='DASS-21 adolescentes',
+            clave='dass-21-adolescentes',
+            version='1.0',
+        )
+        self.preguntas = [
+            PreguntaInstrumento.objects.create(
+                instrumento=self.instrumento,
+                orden=orden,
+                texto=f'Reactivo {orden}',
+                opciones=[{'valor': '1', 'etiqueta': 'A veces'}],
+            )
+            for orden in range(1, 22)
+        ]
+        CalculadoraInstrumento.objects.create(
+            instrumento=self.instrumento,
+            clave='calc-dass-21-adolescentes',
+            version_regla='1.0',
+            estado=CalculadoraInstrumento.Estado.ACTIVA,
+            definicion={},
+            huella_contenido='dass-intera-activa',
+        )
+
+    def _aplicacion(self, fecha_nacimiento):
+        participante = Participante.objects.create(
+            proceso=self.proceso,
+            nombre='Participante adolescente',
+            numero_alumno=f'DASS-{Participante.objects.count() + 1}',
+            fecha_nacimiento=fecha_nacimiento,
+        )
+        return AplicacionInstrumento.objects.create(
+            proceso=self.proceso,
+            participante=participante,
+            instrumento=self.instrumento,
+        )
+
+    def _responder(self, aplicacion):
+        return Client().post(
+            reverse('certificacion_intera:aplicacion_individual', args=[aplicacion.token]),
+            {f'pregunta_{pregunta.id}': '1' for pregunta in self.preguntas},
+        )
+
+    def _crear_y_responder_instrumento(self, clave, reactivos, opciones, estado):
+        instrumento = Instrumento.objects.create(
+            nombre=clave,
+            clave=clave,
+            version='1.0',
+        )
+        preguntas = [
+            PreguntaInstrumento.objects.create(
+                instrumento=instrumento,
+                orden=orden,
+                texto=f'{clave} reactivo {orden}',
+                opciones=opciones,
+            )
+            for orden in range(1, reactivos + 1)
+        ]
+        CalculadoraInstrumento.objects.create(
+            instrumento=instrumento,
+            clave=f'calc-{clave}',
+            version_regla='1.0',
+            estado=estado,
+            definicion={},
+            huella_contenido=f'huella-{clave}',
+        )
+        participante = Participante.objects.create(
+            proceso=self.proceso,
+            nombre=f'Participante {clave}',
+            numero_alumno=f'{clave}-{Participante.objects.count() + 1}',
+            fecha_nacimiento=date(2010, 1, 1),
+        )
+        aplicacion = AplicacionInstrumento.objects.create(
+            proceso=self.proceso,
+            participante=participante,
+            instrumento=instrumento,
+        )
+        respuesta = Client().post(
+            reverse('certificacion_intera:aplicacion_individual', args=[aplicacion.token]),
+            {f'pregunta_{pregunta.id}': '1' for pregunta in preguntas},
+        )
+        aplicacion.refresh_from_db()
+        return respuesta, aplicacion
+
+    def test_dass_publico_genera_resultado_y_lo_deja_evaluado(self):
+        aplicacion = self._aplicacion(date(2010, 1, 1))
+
+        respuesta = self._responder(aplicacion)
+        aplicacion.refresh_from_db()
+        resultado = ResultadoInstrumento.objects.get(aplicacion=aplicacion)
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(aplicacion.respuestas.count(), 21)
+        self.assertIsNotNone(aplicacion.respondido_en)
+        self.assertIsNotNone(aplicacion.puntaje_total)
+        self.assertTrue(aplicacion.interpretacion)
+        self.assertIn('Depresión', aplicacion.resultado_detalle)
+        self.assertIn('Ansiedad', aplicacion.resultado_detalle)
+        self.assertIn('Estrés', aplicacion.resultado_detalle)
+        self.assertEqual(resultado.estado, ResultadoInstrumento.Estado.EVALUADO)
+        pagina = self.client.get(
+            reverse('certificacion_intera:resultado', args=[aplicacion.id]),
+        )
+        self.assertContains(pagina, 'Depresión')
+        self.assertContains(pagina, 'Ansiedad')
+        self.assertContains(pagina, 'Estrés')
+        self.assertContains(pagina, 'Puntaje multiplicado: 14')
+
+    def test_bateria_general_del_qr_califica_dass_y_guarda_valores_numericos(self):
+        ConfiguracionInstrumento.objects.create(
+            proceso=self.proceso,
+            instrumento=self.instrumento,
+            orden=1,
+        )
+        publica = AplicacionPublica.objects.create(proceso=self.proceso)
+        cliente = Client()
+        alta = cliente.post(
+            publica.url_publica,
+            {
+                'nombre': 'Participante QR',
+                'numero_alumno': 'DASS-QR-1',
+                'fecha_nacimiento': '2010-01-01',
+            },
+        )
+        self.assertEqual(alta.status_code, 302)
+        aplicacion = AplicacionInstrumento.objects.get(
+            participante__numero_alumno='DASS-QR-1',
+            instrumento=self.instrumento,
+        )
+        cliente.post(publica.url_publica, {'accion': 'comenzar'})
+
+        respuesta = cliente.post(
+            publica.url_publica,
+            {
+                'accion': 'responder',
+                **{f'pregunta_{pregunta.id}': '1' for pregunta in self.preguntas},
+            },
+        )
+        aplicacion.refresh_from_db()
+
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertEqual(aplicacion.respuestas.count(), 21)
+        self.assertEqual(
+            aplicacion.respuestas.exclude(valor_numerico=None).count(),
+            21,
+        )
+        self.assertIn('Depresión', aplicacion.resultado_detalle)
+        self.assertIn('Ansiedad', aplicacion.resultado_detalle)
+        self.assertIn('Estrés', aplicacion.resultado_detalle)
+        self.assertEqual(
+            ResultadoInstrumento.objects.get(aplicacion=aplicacion).estado,
+            ResultadoInstrumento.Estado.EVALUADO,
+        )
+        pagina = self.client.get(
+            reverse('certificacion_intera:resultado', args=[aplicacion.id]),
+        )
+        self.assertContains(pagina, 'Depresión')
+        self.assertContains(pagina, 'Ansiedad')
+        self.assertContains(pagina, 'Estrés')
+
+    def test_rosenberg_recibe_contexto_completo_y_persiste_resultado(self):
+        respuesta, aplicacion = self._crear_y_responder_instrumento(
+            'rse-autoestima',
+            10,
+            [{'valor': valor, 'etiqueta': str(valor)} for valor in range(1, 5)],
+            CalculadoraInstrumento.Estado.ACTIVA,
+        )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertIn('reactivos_directos', aplicacion.resultado_detalle)
+        self.assertIn('reactivos_inversos', aplicacion.resultado_detalle)
+        self.assertIsNotNone(aplicacion.puntaje_total)
+        self.assertTrue(aplicacion.interpretacion)
+        self.assertEqual(
+            ResultadoInstrumento.objects.get(aplicacion=aplicacion).estado,
+            ResultadoInstrumento.Estado.EVALUADO,
+        )
+        pagina = self.client.get(
+            reverse('certificacion_intera:resultado', args=[aplicacion.id]),
+        )
+        self.assertContains(pagina, 'Reactivos directos')
+        self.assertContains(pagina, 'Reactivos inversos')
+
+    def test_scid_adolescente_recibe_contexto_completo_y_persiste_resultado(self):
+        respuesta, aplicacion = self._crear_y_responder_instrumento(
+            'scid-ii-adolescentes',
+            119,
+            [{'valor': 0, 'etiqueta': 'No'}, {'valor': 1, 'etiqueta': 'Sí'}],
+            CalculadoraInstrumento.Estado.NO_DIAGNOSTICA,
+        )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertIn('bloques', aplicacion.resultado_detalle)
+        self.assertTrue(aplicacion.resultado_detalle['revision_manual_requerida'])
+        self.assertIsNotNone(aplicacion.puntaje_total)
+        self.assertTrue(aplicacion.interpretacion)
+        self.assertEqual(
+            ResultadoInstrumento.objects.get(aplicacion=aplicacion).estado,
+            ResultadoInstrumento.Estado.EVALUADO,
+        )
+        pagina = self.client.get(
+            reverse('certificacion_intera:resultado', args=[aplicacion.id]),
+        )
+        self.assertContains(pagina, 'Edad calculada')
+        self.assertContains(pagina, 'Conductas problemáticas')
+
+    def test_plutchik_recibe_contexto_completo_y_persiste_resultado(self):
+        respuesta, aplicacion = self._crear_y_responder_instrumento(
+            'ersp-plutchik-adolescentes',
+            15,
+            [{'valor': 0, 'etiqueta': 'No'}, {'valor': 1, 'etiqueta': 'Sí'}],
+            CalculadoraInstrumento.Estado.ACTIVA,
+        )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertIn('respuestas_afirmativas', aplicacion.resultado_detalle)
+        self.assertIn('reactivos_criticos_afirmativos', aplicacion.resultado_detalle)
+        self.assertIsNotNone(aplicacion.puntaje_total)
+        self.assertTrue(aplicacion.interpretacion)
+        self.assertEqual(
+            ResultadoInstrumento.objects.get(aplicacion=aplicacion).estado,
+            ResultadoInstrumento.Estado.EVALUADO,
+        )
+        pagina = self.client.get(
+            reverse('certificacion_intera:resultado', args=[aplicacion.id]),
+        )
+        self.assertContains(pagina, 'Reactivos críticos afirmativos')
+        self.assertContains(pagina, 'Revisión prioritaria')
+
+    def test_sin_fecha_aplicacion_la_validacion_impide_el_calculo(self):
+        respuestas = [
+            RespuestaInstrumento(
+                pregunta=pregunta,
+                valor='A veces',
+                valor_numerico=1,
+            )
+            for pregunta in self.preguntas
+        ]
+        contexto = {'fecha_nacimiento': date(2010, 1, 1)}
+
+        validacion = validar_variante_por_edad(self.instrumento, contexto)
+
+        self.assertEqual(validacion['motivo'], 'fecha_aplicacion_requerida')
+        self.assertIsNone(calcular_resultado(self.instrumento, respuestas, contexto))
+
+    def test_edad_usa_fecha_historica_de_respuesta_y_no_fecha_actual(self):
+        aplicacion = self._aplicacion(date(2006, 6, 2))
+        fecha_historica = datetime(2024, 6, 2, 2, 0, tzinfo=datetime_timezone.utc)
+
+        with patch('apps.certificacion_intera.views.timezone.now', return_value=fecha_historica):
+            self._responder(aplicacion)
+        aplicacion.refresh_from_db()
+
+        validacion = aplicacion.resultado_detalle[
+            'trazabilidad_calculadora'
+        ]['validacion_edad']
+        self.assertEqual(aplicacion.respondido_en.date(), date(2024, 6, 2))
+        self.assertEqual(validacion['fecha_aplicacion'], '2024-06-01')
+        self.assertEqual(validacion['edad_cumplida'], 17)
+        self.assertEqual(validacion['motivo'], 'variante_validada')
+        self.assertEqual(
+            ResultadoInstrumento.objects.get(aplicacion=aplicacion).estado,
+            ResultadoInstrumento.Estado.EVALUADO,
+        )
+
+    def test_mensaje_no_afirma_ausencia_si_existe_calculadora(self):
+        aplicacion = self._aplicacion(None)
+        aplicacion.estado = AplicacionInstrumento.Estado.RESPONDIDA
+        aplicacion.respondido_en = datetime(2024, 6, 1, tzinfo=datetime_timezone.utc)
+        aplicacion.save(update_fields=['estado', 'respondido_en'])
+
+        respuesta = self.client.get(
+            reverse('certificacion_intera:resultado', args=[aplicacion.id]),
+        )
+
+        self.assertContains(respuesta, 'falta la fecha de nacimiento')
+        self.assertNotContains(respuesta, 'no cuenta con una calculadora automática')
+
+    def test_mensajes_distinguen_calculadora_no_ejecutable_y_edad_no_aplicable(self):
+        aplicacion = self._aplicacion(date(2010, 1, 1))
+        aplicacion.estado = AplicacionInstrumento.Estado.RESPONDIDA
+        aplicacion.respondido_en = datetime(2024, 6, 1, tzinfo=datetime_timezone.utc)
+        aplicacion.save(update_fields=['estado', 'respondido_en'])
+        calculadora = self.instrumento.calculadoras.get()
+        calculadora.estado = CalculadoraInstrumento.Estado.BLOQUEADA
+        calculadora.save(update_fields=['estado'])
+
+        no_ejecutable = self.client.get(
+            reverse('certificacion_intera:resultado', args=[aplicacion.id]),
+        )
+        self.assertContains(no_ejecutable, 'no está habilitada para ejecución automática')
+
+        calculadora.estado = CalculadoraInstrumento.Estado.ACTIVA
+        calculadora.save(update_fields=['estado'])
+        aplicacion.participante.fecha_nacimiento = date(2000, 1, 1)
+        aplicacion.participante.save(update_fields=['fecha_nacimiento'])
+        edad_no_aplicable = self.client.get(
+            reverse('certificacion_intera:resultado', args=[aplicacion.id]),
+        )
+        self.assertContains(edad_no_aplicable, 'edad no corresponde a esta variante')

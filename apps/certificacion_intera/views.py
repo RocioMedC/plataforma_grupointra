@@ -10,6 +10,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.db import transaction
+from django.db.models.deletion import ProtectedError
 from django.core.paginator import Paginator
 from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
@@ -57,7 +58,9 @@ from apps.portafolio.models import (
 from apps.portafolio.services_calificacion import (
     calcular_resultado,
     campos_contexto_requeridos,
+    obtener_revision_calculadora,
     obtener_revision_resultado,
+    validar_variante_por_edad,
 )
 from .services import (
     cerrar_proceso,
@@ -481,6 +484,68 @@ def procesos_view(request):
             'filtros': request.GET,
         },
     )
+
+
+@acceso_certificacion_intera_requerido
+
+
+def proceso_eliminar_view(request, proceso_id):
+    proceso = _proceso(proceso_id)
+    volver_url = reverse('certificacion_intera:procesos')
+    if request.method == 'POST':
+        nombre = str(proceso)
+        try:
+            with transaction.atomic():
+                proceso.delete()
+        except ProtectedError:
+            messages.error(request, 'El proceso no puede eliminarse porque conserva registros protegidos.')
+        else:
+            messages.success(request, f'Se eliminó el proceso “{nombre}”.')
+        return redirect(volver_url)
+    return render(request, 'certificacion_intera/eliminar.html', {
+        'vista_actual': 'procesos',
+        'titulo_eliminacion': 'Eliminar proceso',
+        'objeto': proceso,
+        'mensaje_eliminacion': (
+            'Se eliminará el proceso y toda la información que depende de él, '
+            'incluidos participantes, aplicaciones, respuestas, resultados, entrevistas, '
+            'seguimientos, configuraciones, enlaces y bitácora. Los instrumentos, documentos, '
+            'preguntas y calculadoras de Portafolio se conservarán.'
+        ),
+        'volver_url': volver_url,
+    })
+
+
+@acceso_certificacion_intera_requerido
+def escuela_eliminar_view(request, escuela_id):
+    escuela = get_object_or_404(Escuela, id=escuela_id)
+    volver_url = reverse('certificacion_intera:escuelas')
+    tiene_procesos = escuela.procesos.exists()
+    if request.method == 'POST':
+        if tiene_procesos:
+            messages.error(request, 'La escuela no puede eliminarse porque tiene procesos de certificación asociados.')
+            return redirect(volver_url)
+        nombre = escuela.nombre
+        try:
+            with transaction.atomic():
+                escuela.delete()
+        except ProtectedError:
+            messages.error(request, 'La escuela no puede eliminarse porque conserva registros protegidos.')
+        else:
+            messages.success(request, f'Se eliminó la escuela “{nombre}”.')
+        return redirect(volver_url)
+    return render(request, 'certificacion_intera/eliminar.html', {
+        'vista_actual': 'escuelas',
+        'titulo_eliminacion': 'Eliminar escuela',
+        'objeto': escuela,
+        'mensaje_eliminacion': (
+            'Esta escuela tiene procesos de certificación asociados y no puede eliminarse. '
+            'Los procesos y su información se conservarán.'
+            if tiene_procesos else 'La escuela se eliminará de forma permanente.'
+        ),
+        'eliminacion_bloqueada': tiene_procesos,
+        'volver_url': volver_url,
+    })
 
 
 @acceso_certificacion_intera_requerido
@@ -1289,7 +1354,27 @@ def aplicacion_publica_proceso_view(request, publica):
     if request.method == 'POST' and request.POST.get('accion') == 'responder':
         respuestas, faltantes = ([], [])
         for pregunta in preguntas:
-            valor = request.POST.get(f'pregunta_{pregunta.id}', '').strip()
+            campo = f'pregunta_{pregunta.id}'
+            if pregunta.tipo_respuesta == PreguntaInstrumento.Tipo.OPCION_MULTIPLE:
+                legibles = [_opcion(pregunta, valor) for valor in request.POST.getlist(campo)]
+                valor, numerico = (
+                    ', '.join((opcion[0] for opcion in legibles)),
+                    (
+                        sum(
+                            (opcion[1] for opcion in legibles if opcion[1] is not None),
+                            Decimal('0'),
+                        )
+                        if legibles
+                        else None
+                    ),
+                )
+            elif pregunta.tipo_respuesta == PreguntaInstrumento.Tipo.TEXTO_LIBRE:
+                valor, numerico = (request.POST.get(campo, '').strip(), None)
+            else:
+                valor, numerico = _opcion(
+                    pregunta,
+                    request.POST.get(campo, '').strip(),
+                )
             if pregunta.requerida and (not valor):
                 faltantes.append(pregunta.id)
             elif valor:
@@ -1298,6 +1383,7 @@ def aplicacion_publica_proceso_view(request, publica):
                         aplicacion=aplicacion,
                         pregunta=pregunta,
                         valor=valor,
+                        valor_numerico=numerico,
                     ),
                 )
         if faltantes:
@@ -1319,7 +1405,34 @@ def aplicacion_publica_proceso_view(request, publica):
             RespuestaInstrumento.objects.bulk_create(respuestas)
             aplicacion.estado = AplicacionInstrumento.Estado.RESPONDIDA
             aplicacion.respondido_en = timezone.now()
-            aplicacion.save(update_fields=['estado', 'respondido_en'])
+            calculo = calcular_resultado(
+                aplicacion.instrumento,
+                respuestas,
+                {
+                    'sexo': participante.sexo,
+                    'fecha_nacimiento': participante.fecha_nacimiento,
+                    'fecha_aplicacion': _fecha_historica_aplicacion(aplicacion),
+                },
+            )
+            campos_aplicacion = ['estado', 'respondido_en']
+            if calculo:
+                aplicacion.puntaje_total = calculo['puntaje_total']
+                aplicacion.interpretacion = calculo['interpretacion']
+                aplicacion.resultado_detalle = calculo['detalle']
+                aplicacion.revision_calculadora = calculo['revision_calculadora']
+                campos_aplicacion.extend(
+                    [
+                        'puntaje_total',
+                        'interpretacion',
+                        'resultado_detalle',
+                        'revision_calculadora',
+                    ],
+                )
+            aplicacion.save(update_fields=campos_aplicacion)
+            resultado, _ = ResultadoInstrumento.objects.get_or_create(aplicacion=aplicacion)
+            if calculo:
+                resultado.estado = ResultadoInstrumento.Estado.EVALUADO
+                resultado.save(update_fields=['estado'])
         return redirect(
             'certificacion_intera:aplicacion_publica',
             token=publica.token,
@@ -1431,7 +1544,9 @@ def participante_eliminar_view(request, participante_id):
         'certificacion_intera/eliminar.html',
         {
             'vista_actual': 'procesos',
+            'titulo_eliminacion': 'Eliminar participante',
             'objeto': participante,
+            'mensaje_eliminacion': 'También se eliminarán sus registros asociados.',
             'volver_url': reverse(
                 'certificacion_intera:participante_detalle',
                 args=[participante.id],
@@ -1760,7 +1875,7 @@ def aplicacion_publica_config_view(request, token):
                 {
                     'sexo': participante.sexo,
                     'fecha_nacimiento': participante.fecha_nacimiento,
-                    'fecha_aplicacion': aplicacion.respondido_en.date(),
+                    'fecha_aplicacion': _fecha_historica_aplicacion(aplicacion),
                 },
             )
             if calculo:
@@ -1856,6 +1971,75 @@ def _opcion(pregunta, valor):
                 numerico = None
             return (opcion.get('etiqueta') or str(valor), numerico)
     return (valor, None)
+
+
+def _fecha_historica_aplicacion(aplicacion):
+    """Obtiene una fecha persistida del flujo, sin depender de la fecha actual."""
+    fecha = aplicacion.respondido_en or aplicacion.iniciada_en or aplicacion.creado_en
+    if not fecha:
+        return None
+    return timezone.localtime(fecha).date() if timezone.is_aware(fecha) else fecha.date()
+
+
+def _detalle_resultado_presentacion(aplicacion):
+    """Resume el resultado persistido sin exponer trazabilidad ni estructuras internas."""
+    detalle = aplicacion.resultado_detalle or {}
+    clave = aplicacion.instrumento.clave
+    if clave == 'dass-21-adolescentes':
+        return [
+            {
+                'nombre': nombre,
+                'valor': (
+                    f"Puntaje bruto: {datos.get('puntaje_bruto', 0)} · "
+                    f"Puntaje multiplicado: {datos.get('puntaje_multiplicado', 0)}"
+                ),
+            }
+            for nombre in ('Depresión', 'Ansiedad', 'Estrés')
+            if (datos := detalle.get(nombre))
+        ]
+    if clave == 'rse-autoestima':
+        return [
+            {'nombre': 'Reactivos directos', 'valor': detalle.get('puntaje_directos', 0)},
+            {'nombre': 'Reactivos inversos', 'valor': detalle.get('puntaje_inversos', 0)},
+            {'nombre': 'Puntaje total', 'valor': detalle.get('puntaje_total', 0)},
+        ]
+    if clave == 'scid-ii-adolescentes':
+        filas = [
+            {
+                'nombre': nombre,
+                'valor': (
+                    f"{datos.get('respuestas_afirmativas', 0)} respuestas afirmativas · "
+                    f"{datos.get('estado', '')}"
+                ),
+            }
+            for nombre, datos in (detalle.get('bloques') or {}).items()
+        ]
+        if detalle.get('edad_calculada') is not None:
+            filas.insert(0, {'nombre': 'Edad calculada', 'valor': detalle['edad_calculada']})
+        return filas
+    if clave == 'ersp-plutchik-adolescentes':
+        criticos = detalle.get('reactivos_criticos_afirmativos') or []
+        return [
+            {'nombre': 'Puntaje total', 'valor': detalle.get('puntaje_total', 0)},
+            {
+                'nombre': 'Respuestas afirmativas',
+                'valor': detalle.get('respuestas_afirmativas', 0),
+            },
+            {
+                'nombre': 'Reactivos críticos afirmativos',
+                'valor': ', '.join(map(str, criticos)) if criticos else 'Ninguno',
+            },
+            {
+                'nombre': 'Revisión prioritaria',
+                'valor': 'Sí' if detalle.get('revision_prioritaria') else 'No',
+            },
+        ]
+    return [
+        {'nombre': nombre, 'valor': valor}
+        for nombre, valor in detalle.items()
+        if nombre != 'trazabilidad_calculadora'
+        and not isinstance(valor, (dict, list))
+    ]
 
 
 def aplicacion_publica_view(request, token):
@@ -1969,9 +2153,9 @@ def aplicacion_publica_view(request, token):
                     aplicacion.instrumento,
                     respuestas,
                     {
-                    'sexo': aplicacion.participante.sexo,
-                    'fecha_nacimiento': aplicacion.participante.fecha_nacimiento,
-                    'fecha_aplicacion': aplicacion.respondido_en.date(),
+                        'sexo': aplicacion.participante.sexo,
+                        'fecha_nacimiento': aplicacion.participante.fecha_nacimiento,
+                        'fecha_aplicacion': _fecha_historica_aplicacion(aplicacion),
                     },
                 )
                 if calculo:
@@ -2019,6 +2203,54 @@ def resultado_view(request, aplicacion_id):
         ),
         id=aplicacion_id,
     )
+    revision_calculadora = obtener_revision_calculadora(aplicacion.instrumento)
+    mensaje_resultado_no_disponible = ''
+    if not aplicacion.interpretacion:
+        if revision_calculadora['seleccion'] == 'ausente':
+            mensaje_resultado_no_disponible = (
+                'Este instrumento aún no cuenta con una calculadora automática; '
+                'sus respuestas quedan disponibles para valoración profesional.'
+            )
+        elif not revision_calculadora['calculadora_encontrada']:
+            mensaje_resultado_no_disponible = (
+                'No fue posible seleccionar una única calculadora compatible con la '
+                'versión del instrumento. Las respuestas quedan disponibles para '
+                'valoración profesional.'
+            )
+        elif not revision_calculadora['puede_ejecutarse']:
+            mensaje_resultado_no_disponible = (
+                'La calculadora existe, pero no está habilitada para ejecución '
+                'automática. Las respuestas quedan disponibles para valoración profesional.'
+            )
+        else:
+            validacion = validar_variante_por_edad(
+                aplicacion.instrumento,
+                {
+                    'fecha_nacimiento': aplicacion.participante.fecha_nacimiento,
+                    'fecha_aplicacion': _fecha_historica_aplicacion(aplicacion),
+                },
+            )
+            motivos = {
+                'fecha_nacimiento_requerida': (
+                    'No fue posible generar el resultado porque falta la fecha de nacimiento.'
+                ),
+                'fecha_aplicacion_requerida': (
+                    'No fue posible generar el resultado porque la aplicación no tiene una fecha registrada.'
+                ),
+                'menor_de_12_sin_variante_autorizada': (
+                    'No fue posible generar el resultado porque la edad no corresponde a esta variante.'
+                ),
+                'variante_no_aplicable': (
+                    'No fue posible generar el resultado porque la edad no corresponde a esta variante.'
+                ),
+            }
+            mensaje_resultado_no_disponible = motivos.get(
+                validacion['motivo'],
+                'No fue posible generar automáticamente el resultado con los datos de esta aplicación.',
+            )
+            mensaje_resultado_no_disponible += (
+                ' Las respuestas quedan disponibles para valoración profesional.'
+            )
     return render(
         request,
         'certificacion_intera/resultado.html',
@@ -2035,6 +2267,8 @@ def resultado_view(request, aplicacion_id):
                     '',
                 )
             ),
+            'mensaje_resultado_no_disponible': mensaje_resultado_no_disponible,
+            'detalle_presentacion': _detalle_resultado_presentacion(aplicacion),
         },
     )
 

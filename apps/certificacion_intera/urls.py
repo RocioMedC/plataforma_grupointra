@@ -62,6 +62,11 @@ urlpatterns = [
         name='escuela_editar',
     ),
     path(
+        'escuelas/<int:escuela_id>/eliminar/',
+        views.escuela_eliminar_view,
+        name='escuela_eliminar',
+    ),
+    path(
         'procesos/nuevo/',
         views.proceso_crear_view,
         name='proceso_crear_general',
@@ -80,6 +85,11 @@ urlpatterns = [
         'procesos/<int:proceso_id>/cerrar/',
         views.proceso_cerrar_view,
         name='proceso_cerrar',
+    ),
+    path(
+        'procesos/<int:proceso_id>/eliminar/',
+        views.proceso_eliminar_view,
+        name='proceso_eliminar',
     ),
     path(
         'procesos/<int:proceso_id>/bitacora/',

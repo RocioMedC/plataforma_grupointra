@@ -134,26 +134,36 @@
                                 </td>
 
                                 <td>
+                                    <div class="intera-actions">
                                     {% if seleccion_proceso %}
                                         <a
-                                            class="intera-btn"
+                                            class="intera-list-action"
                                             href="{% url 'certificacion_intera:proceso_crear' escuela.id %}?return_url={{ request.get_full_path|urlencode }}"
                                         >
                                             Crear proceso
                                         </a>
 
                                         <a
+                                            class="intera-list-action"
                                             href="{% url 'certificacion_intera:escuela_detalle' escuela.id %}?return_url={{ request.get_full_path|urlencode }}"
                                         >
                                             Ver escuela
                                         </a>
                                     {% else %}
                                         <a
+                                            class="intera-list-action"
                                             href="{% url 'certificacion_intera:escuela_detalle' escuela.id %}?return_url={{ request.get_full_path|urlencode }}"
                                         >
                                             Ver escuela →
                                         </a>
+                                        <a
+                                            class="intera-list-action intera-list-action-danger"
+                                            href="{% url 'certificacion_intera:escuela_eliminar' escuela.id %}"
+                                        >
+                                            Eliminar
+                                        </a>
                                     {% endif %}
+                                    </div>
                                 </td>
                             </tr>
                         {% empty %}

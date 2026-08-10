@@ -29,6 +29,17 @@
                     {{ aplicacion.interpretacion }}
                 </p>
 
+                {% if detalle_presentacion %}
+                    <div class="intera-result-grid">
+                        {% for item in detalle_presentacion %}
+                            <div class="intera-result-item">
+                                <b>{{ item.nombre }}</b>
+                                <span>{{ item.valor }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
                 {% if revision_resultado.requiere_revision_profesional %}
                     <p class="intera-message">
                         {{ revision_resultado.advertencia_larga }}
@@ -42,9 +53,7 @@
                 {% endif %}
             {% else %}
                 <p class="intera-muted">
-                    Este instrumento aún no cuenta con una calculadora
-                    automática; sus respuestas quedan disponibles para
-                    valoración profesional.
+                    {{ mensaje_resultado_no_disponible }}
                 </p>
             {% endif %}
         </section>
