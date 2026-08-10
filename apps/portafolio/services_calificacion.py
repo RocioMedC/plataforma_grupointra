@@ -38,8 +38,9 @@ ADVERTENCIA_PLUTCHIK_ADOLESCENTES = (
     'interpretarse como diagnóstico ni como predicción de conducta suicida.'
 )
 ADVERTENCIA_PLUTCHIK_PRIORITARIA = (
-    'Se identificó una respuesta crítica que requiere revisión clínica prioritaria '
-    'y aplicación del protocolo institucional correspondiente.'
+    'ALERTA DE ATENCIÓN EL MISMO DÍA: El resultado requiere evaluación clínica '
+    'individual inmediata y aplicación del protocolo institucional de canalización. '
+    'Este tamizaje no constituye un diagnóstico ni sustituye la valoración profesional.'
 )
 
 
@@ -505,6 +506,25 @@ def _calcular_scid2_adolescentes(respuestas, contexto=None):
     }
 
 
+def _prioridad_plutchik(total, criticos):
+    """Interpreta las reglas documentadas sin inferir factores opcionales."""
+    total = int(total)
+    criticos = list(criticos or [])
+    riesgo_por_puntaje = 6 <= total <= 15
+    riesgo_por_criticos = bool(criticos)
+    requiere_atencion_mismo_dia = riesgo_por_puntaje or riesgo_por_criticos
+    return {
+        'interpretacion_orientativa': (
+            'Presencia de riesgo; requiere evaluación clínica individual inmediata'
+            if riesgo_por_puntaje
+            else 'No se detecta riesgo mediante este tamizaje por puntaje total'
+        ),
+        'riesgo_por_puntaje': riesgo_por_puntaje,
+        'riesgo_por_reactivo_critico': riesgo_por_criticos,
+        'requiere_atencion_mismo_dia': requiere_atencion_mismo_dia,
+    }
+
+
 def _calcular_plutchik_adolescentes(respuestas, contexto=None):
     """Calcula el tamizaje adolescente y marca reactivos críticos sin alertar fuera del sistema."""
     valores = _mapa(respuestas)
@@ -514,7 +534,8 @@ def _calcular_plutchik_adolescentes(respuestas, contexto=None):
         if valores.get(orden, Decimal('0')) == Decimal('1')
     ]
     criticos = [orden for orden in (13, 14, 15) if orden in afirmativos]
-    revision_prioritaria = bool(criticos)
+    prioridad = _prioridad_plutchik(len(afirmativos), criticos)
+    revision_prioritaria = prioridad['requiere_atencion_mismo_dia']
     return {
         'puntaje_total': Decimal(str(len(afirmativos))),
         'interpretacion': (
@@ -527,6 +548,7 @@ def _calcular_plutchik_adolescentes(respuestas, contexto=None):
             'reactivos_criticos_afirmativos': criticos,
             'existe_respuesta_critica': revision_prioritaria,
             'revision_prioritaria': revision_prioritaria,
+            **prioridad,
             'tipo_instrumento': 'Tamizaje',
             'no_diagnostico': True,
             'advertencia_prioritaria': (
@@ -577,6 +599,20 @@ def _limites_opciones_numericas(pregunta):
     return min(valores), max(valores)
 
 
+def _interpretacion_rosenberg(total):
+    """Aplica exclusivamente los rangos documentados en el instrumento."""
+    total = Decimal(str(total))
+    if Decimal('30') <= total <= Decimal('40'):
+        return ('Autoestima elevada', 'Se considera autoestima normal')
+    if Decimal('26') <= total <= Decimal('29'):
+        return ('Autoestima media', 'Conviene mejorarla')
+    if Decimal('10') <= total <= Decimal('24'):
+        return ('Autoestima baja', 'Problemas significativos de autoestima')
+    if total == Decimal('25'):
+        return ('Sin rango definido', 'El documento no especifica este puntaje')
+    return ('Fuera del rango esperado', 'Revisar respuestas y configuración')
+
+
 def _calcular_rosenberg_orientativa(respuestas, contexto=None):
     """Califica Rosenberg con la codificación importada, sin baremo adolescente."""
     directos = {1, 3, 4, 6, 7}
@@ -611,11 +647,13 @@ def _calcular_rosenberg_orientativa(respuestas, contexto=None):
         Decimal('0'),
     )
     total = total_directos + total_inversos
+    clasificacion, observacion = _interpretacion_rosenberg(total)
     return {
         'puntaje_total': total,
         'interpretacion': (
-            'Rosenberg: resultado orientativo para la población utilizada '
-            'en INTERA; no constituye un baremo adolescente validado ni un diagnóstico.'
+            f'{clasificacion}. {observacion}. Resultado orientativo para la '
+            'población utilizada en INTERA; no constituye un baremo '
+            'adolescente validado ni un diagnóstico.'
         ),
         'detalle': {
             'reactivos_directos': {
@@ -626,6 +664,8 @@ def _calcular_rosenberg_orientativa(respuestas, contexto=None):
             'puntaje_directos': _numero_para_detalle(total_directos),
             'puntaje_inversos': _numero_para_detalle(total_inversos),
             'puntaje_total': _numero_para_detalle(total),
+            'clasificacion_orientativa': clasificacion,
+            'observacion_orientativa': observacion,
         },
     }
 

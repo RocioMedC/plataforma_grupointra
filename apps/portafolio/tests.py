@@ -36,6 +36,8 @@ from .services_calificacion import (
     calcular_resultado,
     campos_contexto_requeridos,
     edad_cumplida,
+    _interpretacion_rosenberg,
+    _prioridad_plutchik,
     obtener_revision_calculadora,
     validar_variante_por_edad,
 )
@@ -811,6 +813,24 @@ class RevisionCalculadoraTests(TestCase):
 
 
 class CalculadorasAdolescentesOrientativasTests(TestCase):
+    def test_rosenberg_clasifica_todos_los_limites_documentados(self):
+        casos = {
+            10: 'Autoestima baja',
+            24: 'Autoestima baja',
+            25: 'Sin rango definido',
+            26: 'Autoestima media',
+            29: 'Autoestima media',
+            30: 'Autoestima elevada',
+            40: 'Autoestima elevada',
+        }
+
+        for puntaje, clasificacion in casos.items():
+            with self.subTest(puntaje=puntaje):
+                self.assertEqual(
+                    _interpretacion_rosenberg(puntaje)[0],
+                    clasificacion,
+                )
+
     def _instrumento(self, clave, estado):
         instrumento = Instrumento.objects.create(
             nombre=clave,
@@ -981,6 +1001,11 @@ class CalculadorasAdolescentesOrientativasTests(TestCase):
         self.assertIsNone(calcular_resultado(instrumento, []))
 
     def test_plutchik_adolescente_detecta_criticos_y_calculadora_bloqueada_no_ejecuta(self):
+        self.assertFalse(_prioridad_plutchik(5, [])['requiere_atencion_mismo_dia'])
+        self.assertTrue(_prioridad_plutchik(6, [])['riesgo_por_puntaje'])
+        self.assertTrue(
+            _prioridad_plutchik(1, [13])['riesgo_por_reactivo_critico'],
+        )
         bloqueado = self._instrumento(
             'ersp-plutchik-adolescentes',
             CalculadoraInstrumento.Estado.BLOQUEADA,
@@ -1008,8 +1033,9 @@ class CalculadorasAdolescentesOrientativasTests(TestCase):
         )
         self.assertTrue(resultado['detalle']['existe_respuesta_critica'])
         self.assertTrue(resultado['detalle']['revision_prioritaria'])
+        self.assertTrue(resultado['detalle']['requiere_atencion_mismo_dia'])
         self.assertTrue(resultado['requiere_revision_profesional'])
-        self.assertIn('revisión clínica prioritaria', resultado['detalle']['advertencia_prioritaria'])
+        self.assertIn('ATENCIÓN EL MISMO DÍA', resultado['detalle']['advertencia_prioritaria'])
         self.assertIn('no debe interpretarse como diagnóstico', resultado['advertencia_larga'])
 
 

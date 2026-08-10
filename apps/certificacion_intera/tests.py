@@ -1,11 +1,12 @@
 from django.contrib.auth.models import Group, User
 from django.db.models.deletion import ProtectedError
-from django.test import Client, TestCase
+from django.test import Client, SimpleTestCase, TestCase
 from django.test.utils import override_settings
 from django.urls import reverse
 from datetime import date, datetime, timedelta, timezone as datetime_timezone
 from io import BytesIO
 import re
+from types import SimpleNamespace
 from unittest.mock import patch
 from urllib import error
 from .models import Escuela
@@ -41,6 +42,45 @@ from apps.portafolio.services_calificacion import (
     validar_variante_por_edad,
 )
 from . import consultorio_web
+from .templatetags.intera_publica import nombre_publico_intera
+
+
+class NombrePublicoInstrumentoTests(SimpleTestCase):
+
+    def test_plutchik_usa_nombre_neutro_solo_en_presentacion_publica(self):
+        instrumento = SimpleNamespace(
+            clave='ersp-plutchik-adolescentes',
+            nombre='Escala de Riesgo Suicida de Plutchik',
+        )
+
+        self.assertEqual(nombre_publico_intera(instrumento), 'Escala de Plutchik')
+        self.assertEqual(
+            instrumento.nombre,
+            'Escala de Riesgo Suicida de Plutchik',
+        )
+
+    def test_instrumento_normal_conserva_su_nombre(self):
+        instrumento = SimpleNamespace(
+            clave='dass-21-adolescentes',
+            nombre='DASS-21',
+        )
+
+        self.assertEqual(nombre_publico_intera(instrumento), 'DASS-21')
+
+    def test_rosenberg_usa_nombre_neutro_solo_en_presentacion_publica(self):
+        instrumento = SimpleNamespace(
+            clave='rse-autoestima',
+            nombre='Escala de Autoestima de Rosenberg',
+        )
+
+        self.assertEqual(
+            nombre_publico_intera(instrumento),
+            'Escala de Rosenberg',
+        )
+        self.assertEqual(
+            instrumento.nombre,
+            'Escala de Autoestima de Rosenberg',
+        )
 
 class FakeHttpResponse:
 
@@ -2510,6 +2550,14 @@ class CalculoDASSAdolescenteInteraTests(TestCase):
         self.assertEqual(respuesta.status_code, 200)
         self.assertIn('reactivos_directos', aplicacion.resultado_detalle)
         self.assertIn('reactivos_inversos', aplicacion.resultado_detalle)
+        self.assertEqual(
+            aplicacion.resultado_detalle['clasificacion_orientativa'],
+            'Sin rango definido',
+        )
+        self.assertEqual(
+            aplicacion.resultado_detalle['observacion_orientativa'],
+            'El documento no especifica este puntaje',
+        )
         self.assertIsNotNone(aplicacion.puntaje_total)
         self.assertTrue(aplicacion.interpretacion)
         self.assertEqual(
@@ -2521,6 +2569,9 @@ class CalculoDASSAdolescenteInteraTests(TestCase):
         )
         self.assertContains(pagina, 'Reactivos directos')
         self.assertContains(pagina, 'Reactivos inversos')
+        self.assertContains(pagina, 'Clasificación orientativa')
+        self.assertContains(pagina, 'Sin rango definido')
+        self.assertContains(pagina, 'El documento no especifica este puntaje')
 
     def test_scid_adolescente_recibe_contexto_completo_y_persiste_resultado(self):
         respuesta, aplicacion = self._crear_y_responder_instrumento(
@@ -2567,6 +2618,10 @@ class CalculoDASSAdolescenteInteraTests(TestCase):
         )
         self.assertContains(pagina, 'Reactivos críticos afirmativos')
         self.assertContains(pagina, 'Revisión prioritaria')
+        self.assertContains(pagina, 'Interpretación orientativa')
+        self.assertContains(pagina, 'Acción requerida')
+        self.assertContains(pagina, 'ATENCIÓN EL MISMO DÍA')
+        self.assertContains(pagina, 'canalización el mismo día')
 
     def test_sin_fecha_aplicacion_la_validacion_impide_el_calculo(self):
         respuestas = [

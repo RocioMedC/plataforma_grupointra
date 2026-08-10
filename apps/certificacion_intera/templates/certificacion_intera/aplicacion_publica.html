@@ -1,3 +1,4 @@
+{% load intera_publica %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -9,7 +10,7 @@
     >
 
     <title>
-        {{ instrumento.nombre }} | INTERA
+        {{ instrumento|nombre_publico_intera }} | INTERA
     </title>
 
     <style>
@@ -141,7 +142,7 @@
 
         {% elif pantalla == 'contexto_baremo' %}
             <h1>
-                {{ instrumento.nombre }}
+                {{ instrumento|nombre_publico_intera }}
             </h1>
 
             <p>
@@ -173,7 +174,7 @@
 
         {% else %}
             <h1>
-                {{ instrumento.nombre }}
+                {{ instrumento|nombre_publico_intera }}
             </h1>
 
             <p>

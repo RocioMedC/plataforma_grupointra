@@ -1004,6 +1004,13 @@ body {
     background: #fff8f7;
 }
 
+.intera-message-alert {
+    background: #fff1f0;
+    border-color: #efb7b2;
+    color: #8f2923;
+    font-weight: 650;
+}
+
 .intera-result-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit,minmax(190px,1fr));
