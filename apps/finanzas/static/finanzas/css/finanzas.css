@@ -181,6 +181,8 @@ body { font-family: 'Work Sans', system-ui, sans-serif; color: #1B2C4F; }
 .fin-btn-mini:hover { background: #F7F9FC; }
 .fin-btn-mini-activo { background: #1B2C4F; border-color: #1B2C4F; color: #fff; }
 .fin-btn-mini-activo:hover { background: #16233F; }
+.fin-btn-mini-peligro { border-color: #E3B4B4; color: #B3261E; }
+.fin-btn-mini-peligro:hover { background: #FBEAEA; }
 .fin-table-wrap { overflow-x: auto; }
 table.fin-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 720px; }
 table.fin-table thead tr { background: #F7F9FC; text-align: left; color: #7C879B; }

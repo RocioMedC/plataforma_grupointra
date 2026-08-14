@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied
-from django.db.models import Count, Sum
+from django.db.models import Count, ProtectedError, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -935,6 +935,20 @@ def nomina_academia_view(request):
             if form_tabulador_academia.is_valid():
                 _guardar_con_bitacora(request, form_tabulador_academia, 'Tabulador de Academia registrado correctamente.')
                 return redirect('finanzas:nomina_academia')
+        elif accion == 'eliminar_tabulador_academia':
+            tabulador = get_object_or_404(TabuladorAcademia, pk=request.POST.get('id'))
+            try:
+                tabulador.delete()
+            except ProtectedError:
+                messages.error(
+                    request,
+                    'No se puede eliminar: ya se usó para calcular al menos una nómina de Academia. '
+                    'Registra un tabulador nuevo con la tarifa correcta en su lugar.',
+                )
+            else:
+                registrar(request.user, None, RegistroAuditoria.Accion.ELIMINO, detalle=f'Tabulador de Academia: {tabulador}.')
+                messages.success(request, 'Tabulador de Academia eliminado correctamente.')
+            return redirect('finanzas:nomina_academia')
         elif accion == 'sellar_academia':
             nomina = get_object_or_404(NominaAcademia, pk=request.POST.get('id'))
             try:

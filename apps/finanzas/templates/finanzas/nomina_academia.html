@@ -55,6 +55,7 @@
             <th>Concepto</th>
             <th class="num">Monto por unidad</th>
             <th>Vigente desde</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -63,9 +64,21 @@
             <td>{{ t.get_concepto_display }}</td>
             <td class="num">{{ t.monto_unidad|dinero }}</td>
             <td>{{ t.vigente_desde|date:"d M Y" }}</td>
+            <td class="fin-acciones-celda">
+              {% if t.conceptos_generados.exists %}
+              <span class="fin-table-meta">En uso</span>
+              {% else %}
+              <form method="post" class="fin-inline-form" onsubmit="return confirm('¿Eliminar este tabulador de Academia? Esta acción no se puede deshacer.');">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="eliminar_tabulador_academia">
+                <input type="hidden" name="id" value="{{ t.id }}">
+                <button type="submit" class="fin-btn-mini fin-btn-mini-peligro">Eliminar</button>
+              </form>
+              {% endif %}
+            </td>
           </tr>
           {% empty %}
-          <tr><td colspan="3" class="fin-empty">Todavía no hay tabuladores de Academia registrados.</td></tr>
+          <tr><td colspan="4" class="fin-empty">Todavía no hay tabuladores de Academia registrados.</td></tr>
           {% endfor %}
         </tbody>
       </table>
