@@ -317,9 +317,12 @@ class LineaNominaManualForm(forms.ModelForm):
 
     class Meta:
         model = LineaNominaSemanal
+        # estatus_pago (Pendiente/Pagado) no va aquí: es el estado del dinero,
+        # que se decide después con "Marcar pago", no al capturar a la persona
+        # (nace en Pendiente, el default del modelo).
         fields = [
             'persona', 'tipo_persona', 'concepto', 'pago_base', 'vale_gasolina',
-            'extras', 'metodo_pago', 'estatus_pago', 'observaciones',
+            'extras', 'metodo_pago', 'observaciones',
         ]
         widgets = {
             'persona': forms.TextInput(attrs={**_ATTRS, 'placeholder': 'Nombre completo'}),
@@ -329,7 +332,6 @@ class LineaNominaManualForm(forms.ModelForm):
             'vale_gasolina': forms.NumberInput(attrs={**_ATTRS, 'step': '0.01', 'min': '0'}),
             'extras': forms.NumberInput(attrs={**_ATTRS, 'step': '0.01', 'min': '0'}),
             'metodo_pago': forms.Select(attrs=_ATTRS),
-            'estatus_pago': forms.Select(attrs=_ATTRS),
             'observaciones': forms.TextInput(attrs={**_ATTRS, 'placeholder': 'Opcional'}),
         }
 
