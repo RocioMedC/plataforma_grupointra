@@ -14,7 +14,7 @@
 
     <link
         rel="stylesheet"
-        href="{% static 'certificacion_intera/css/certificacion_intera.css' %}?v=process-redesign-1"
+        href="{% static 'certificacion_intera/css/certificacion_intera.css' %}?v=alerta-plutchik-3"
     >
 
     <link
@@ -72,7 +72,6 @@
                     href="{% url 'certificacion_intera:dashboard' %}"
                     class="intera-nav-item{% if vista_actual == 'dashboard' %} active{% endif %}"
                 >
-                    <span class="intera-nav-icon" aria-hidden="true">⌂</span>
                     Panel
                 </a>
 
@@ -80,7 +79,6 @@
                     href="{% url 'certificacion_intera:escuelas' %}"
                     class="intera-nav-item{% if vista_actual == 'escuelas' %} active{% endif %}"
                 >
-                    <span class="intera-nav-icon" aria-hidden="true">▥</span>
                     Escuelas
                 </a>
 
@@ -88,7 +86,6 @@
                     href="{% url 'certificacion_intera:procesos' %}"
                     class="intera-nav-item{% if vista_actual == 'procesos' %} active{% endif %}"
                 >
-                    <span class="intera-nav-icon" aria-hidden="true">▤</span>
                     Procesos
                 </a>
 
@@ -96,7 +93,6 @@
                     href="{% url 'certificacion_intera:participantes' %}"
                     class="intera-nav-item{% if vista_actual == 'participantes' %} active{% endif %}"
                 >
-                    <span class="intera-nav-icon" aria-hidden="true">♙</span>
                     Participantes
                 </a>
 
@@ -104,7 +100,6 @@
                     href="{% url 'certificacion_intera:entrevistas' %}"
                     class="intera-nav-item{% if vista_actual == 'entrevistas' %} active{% endif %}"
                 >
-                    <span class="intera-nav-icon" aria-hidden="true">□</span>
                     Entrevistas
                 </a>
 
@@ -112,16 +107,7 @@
                     href="{% url 'certificacion_intera:seguimiento' %}"
                     class="intera-nav-item{% if vista_actual == 'seguimiento' %} active{% endif %}"
                 >
-                    <span class="intera-nav-icon" aria-hidden="true">↗</span>
                     Seguimiento
-                </a>
-
-                <a
-                    href="{% url 'certificacion_intera:documentos' %}"
-                    class="intera-nav-item{% if vista_actual == 'documentos' %} active{% endif %}"
-                >
-                    <span class="intera-nav-icon" aria-hidden="true">▧</span>
-                    Documentos
                 </a>
 
                 <div class="intera-nav-heading">
@@ -132,19 +118,11 @@
                     href="{% url 'certificacion_intera:configuracion_general' %}"
                     class="intera-nav-item{% if vista_actual == 'configuracion' %} active{% endif %}"
                 >
-                    <span class="intera-nav-icon" aria-hidden="true">⚙</span>
                     Configuración
                 </a>
             </nav>
 
             <div class="intera-sidebar-footer">
-                <div class="intera-sidebar-user">
-                    <b>{{ user.username|slice:':2'|upper }}</b>
-                    <span>
-                        {% if user.get_full_name %}{{ user.get_full_name }}{% else %}Coordinación INTERA{% endif %}
-                        <small>Coordinación</small>
-                    </span>
-                </div>
                 <form
                     method="post"
                     action="{% url 'logout' %}"

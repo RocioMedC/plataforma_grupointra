@@ -9,7 +9,7 @@
 {% endblock %}
 
 {% block contenido %}
-    <div class="intera-stack intera-directory-page">
+    <div class="intera-stack">
         {% if seleccion_proceso %}
             <section class="intera-card intera-card-pad">
                 <h2>
@@ -32,13 +32,20 @@
                 </p>
             </section>
         {% else %}
-    
+    <div>
+        <a
+            class="intera-btn"
+            href="{% url 'certificacion_intera:escuela_crear' %}"
+        >
+            Registrar escuela
+        </a>
+    </div>
         {% endif %}
 
-        <section class="intera-card intera-card-pad intera-filter-card">
+        <section class="intera-card intera-card-pad">
             <form
                 method="get"
-                class="intera-form-grid intera-filter-grid intera-filter-grid--schools"
+                class="intera-form-grid"
             >
                 {% if seleccion_proceso %}
                     <input
@@ -48,7 +55,7 @@
                     >
                 {% endif %}
 
-                <div class="intera-field intera-filter-field">
+                <div class="intera-field full">
                     <label for="q">
                         Buscar
                     </label>
@@ -61,12 +68,12 @@
                     >
                 </div>
 
-                <div class="intera-field intera-filter-field">
-                    <label for="estado">
+                <div class="intera-field">
+                    <label>
                         Estado
                     </label>
 
-                    <select id="estado" name="estado">
+                    <select name="estado">
                         <option value="">
                             Todos
                         </option>
@@ -82,41 +89,32 @@
                     </select>
                 </div>
 
-                <div class="intera-field intera-filter-field">
-                    <label for="municipio">
+                <div class="intera-field">
+                    <label>
                         Municipio
                     </label>
 
                     <input
-                        id="municipio"
                         name="municipio"
                         value="{{ filtros.municipio|default:'' }}"
-                        placeholder="Municipio"
                     >
                 </div>
 
-                <div class="intera-form-actions intera-filter-actions">
-                    <a class="intera-text-link intera-filter-reset" href="{% url 'certificacion_intera:escuelas' %}{% if seleccion_proceso %}?accion=crear_proceso{% endif %}">
-                        Limpiar
+                <div class="intera-form-actions">
+                    <a href="{% url 'certificacion_intera:escuelas' %}">
+                        Limpiar filtros
                     </a>
 
-                    <button class="intera-btn intera-filter-submit" type="submit">
-                        Filtrar
+                    <button class="intera-btn">
+                        Buscar
                     </button>
                 </div>
             </form>
         </section>
 
-        <section class="intera-card intera-directory-list">
+        <section class="intera-card">
             <div class="intera-table-wrap">
                 <table class="intera-table">
-                    <thead>
-                        <tr>
-                            <th>Escuela</th>
-                            <th>Contacto</th>
-                            <th class="intera-actions-column">Acciones</th>
-                        </tr>
-                    </thead>
                     <tbody>
                         {% for escuela in escuelas %}
                             <tr>
@@ -156,13 +154,7 @@
                                             class="intera-list-action"
                                             href="{% url 'certificacion_intera:escuela_detalle' escuela.id %}?return_url={{ request.get_full_path|urlencode }}"
                                         >
-                                            Ver escuela
-                                        </a>
-                                        <a
-                                            class="intera-list-action"
-                                            href="{% url 'certificacion_intera:escuela_editar' escuela.id %}"
-                                        >
-                                            Editar
+                                            Ver escuela →
                                         </a>
                                         <a
                                             class="intera-list-action intera-list-action-danger"
