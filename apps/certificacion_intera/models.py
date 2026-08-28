@@ -186,7 +186,7 @@ class Participante(models.Model):
 class AplicacionInstrumento(models.Model):
     class Estado(models.TextChoices):
         PENDIENTE = ('pendiente', 'Pendiente')
-        RESPONDIDA = ('respondida', 'Concluida')
+        RESPONDIDA = ('respondida', 'Respondida')
         CANCELADA = ('cancelada', 'Cancelada')
 
     token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)

@@ -62,19 +62,6 @@ urlpatterns = [
         name='escuela_editar',
     ),
     path(
-        'documentos/', views.documentos_view, name='documentos',
-    ),
-    path(
-        'documentos/incorporar/',
-        views.documento_incorporar_view,
-        name='documento_incorporar',
-    ),
-    path(
-        'documentos/<int:documento_id>/descargar/',
-        views.documento_descargar_view,
-        name='documento_descargar',
-    ),
-    path(
         'escuelas/<int:escuela_id>/eliminar/',
         views.escuela_eliminar_view,
         name='escuela_eliminar',
@@ -93,16 +80,6 @@ urlpatterns = [
         'procesos/<int:proceso_id>/',
         views.proceso_detalle_view,
         name='proceso_detalle',
-    ),
-    path(
-        'procesos/<int:proceso_id>/documentos/incorporar/',
-        views.proceso_documento_incorporar_view,
-        name='proceso_documento_incorporar',
-    ),
-    path(
-        'procesos/<int:proceso_id>/documentos/<int:documento_id>/descargar/',
-        views.proceso_documento_descargar_view,
-        name='proceso_documento_descargar',
     ),
     path(
         'procesos/<int:proceso_id>/cerrar/',
@@ -158,11 +135,6 @@ urlpatterns = [
         'participantes/<int:participante_id>/editar/',
         views.participante_editar_view,
         name='participante_editar',
-    ),
-    path(
-        'participantes/<int:participante_id>/resultados/',
-        views.resultados_participante_view,
-        name='resultados_participante',
     ),
     path(
         'participantes/<int:participante_id>/eliminar/',

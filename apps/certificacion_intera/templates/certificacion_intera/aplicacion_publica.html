@@ -1,4 +1,4 @@
-{% load static intera_publica %}
+{% load intera_publica %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -13,14 +13,67 @@
         {{ instrumento|nombre_publico_intera }} | INTERA
     </title>
 
-    <link
-        rel="stylesheet"
-        href="{% static 'certificacion_intera/css/certificacion_intera.css' %}?v=aplicacion-publica-1"
-    >
+    <style>
+        body {
+            margin: 0;
+            background: #eef1f6;
+            color: #1b2c4f;
+            font: 16px Arial, sans-serif;
+        }
+
+        .box {
+            max-width: 720px;
+            margin: 48px auto;
+            background: #fff;
+            padding: 32px;
+            border-radius: 16px;
+        }
+
+        .question {
+            padding: 20px 0;
+            border-top: 1px solid #e6eaf2;
+        }
+
+        label {
+            display: block;
+            margin: 8px 0;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            padding: 9px;
+            border: 1px solid #d9dfeb;
+            border-radius: 6px;
+        }
+
+        input[type="radio"],
+        input[type="checkbox"] {
+            width: auto;
+        }
+
+        textarea {
+            min-height: 90px;
+        }
+
+        .btn {
+            background: #5b5fae;
+            color: #fff;
+            border: 0;
+            border-radius: 8px;
+            padding: 12px 18px;
+            font-weight: bold;
+        }
+
+        small {
+            color: #b4413b;
+        }
+    </style>
 </head>
 
 <body>
-    <main class="intera-public-card">
+    <main class="box">
         {% if pantalla == 'gracias' %}
             <h1>
                 Gracias por responder
@@ -88,62 +141,62 @@
             </h1>
 
         {% elif pantalla == 'contexto_baremo' %}
-            <header class="intera-public-intro">
-                <h1>{{ instrumento|nombre_publico_intera }}</h1>
+            <h1>
+                {{ instrumento|nombre_publico_intera }}
+            </h1>
 
-                <p class="intera-public-instructions">
-                    Este dato se solicita únicamente para fines de baremación e
-                    interpretación del instrumento.
-                </p>
-            </header>
+            <p>
+                Este dato se solicita únicamente para fines de baremación e
+                interpretación del instrumento.
+            </p>
 
-            <form method="post" class="intera-public-form">
+            <form method="post">
                 {% csrf_token %}
 
                 {% for field in form %}
-                    <label class="intera-public-field">
+                    <label>
                         {{ field.label }} *
 
                         {{ field }}
 
                         {% for error in field.errors %}
-                            <small class="intera-public-error">
+                            <small>
                                 {{ error }}
                             </small>
                         {% endfor %}
                     </label>
                 {% endfor %}
 
-                <div class="intera-public-form-actions">
-                    <button class="intera-public-btn">Continuar</button>
-                </div>
+                <button class="btn">
+                    Continuar
+                </button>
             </form>
 
         {% else %}
-            <header class="intera-public-intro">
-                <h1>{{ instrumento|nombre_publico_intera }}</h1>
+            <h1>
+                {{ instrumento|nombre_publico_intera }}
+            </h1>
 
-                <p class="intera-public-instructions">
-                    {{ instrumento.instrucciones }}
-                </p>
-            </header>
+            <p>
+                {{ instrumento.instrucciones }}
+            </p>
 
-            <form method="post" class="intera-public-form">
+            <form method="post">
                 {% csrf_token %}
 
                 {% if publica %}
-                    <section class="intera-public-question">
-                        <strong class="intera-public-question-text">
+                    <section class="question">
+                        <strong>
                             Datos de identificación
                         </strong>
 
                         {% if error %}
-                            <small class="intera-public-error">
+                            <small>
                                 {{ error }}
                             </small>
                         {% endif %}
 
-                        <label class="intera-public-field">
+                        <label>
                             Nombre
 
                             <input
@@ -152,7 +205,7 @@
                             >
                         </label>
 
-                        <label class="intera-public-field">
+                        <label>
                             Número de alumno
 
                             <input
@@ -161,14 +214,14 @@
                             >
                         </label>
 
-                        <label class="intera-public-field">
+                        <label>
                             Grupo
 
                             <input name="grupo">
                         </label>
 
                         {% if solicitar_fecha_nacimiento %}
-                            <label class="intera-public-field">
+                            <label>
                                 Fecha de nacimiento
 
                                 <input
@@ -182,12 +235,12 @@
                 {% endif %}
 
                 {% if solicitar_sexo %}
-                    <section class="intera-public-question">
-                        <strong class="intera-public-question-text">
+                    <section class="question">
+                        <strong>
                             Dato para baremación
                         </strong>
 
-                        <label class="intera-public-field">
+                        <label>
                             Sexo (requerido para baremos del instrumento)
 
                             <select
@@ -207,8 +260,8 @@
                 {% endif %}
 
                 {% for pregunta in preguntas %}
-                    <section class="intera-public-question">
-                        <strong class="intera-public-question-text">
+                    <section class="question">
+                        <strong>
                             {{ forloop.counter }}. {{ pregunta.texto }}
 
                             {% if pregunta.requerida %}
@@ -217,20 +270,18 @@
                         </strong>
 
                         {% if pregunta.id in faltantes %}
-                            <small class="intera-public-error">
+                            <small>
                                 Esta respuesta es obligatoria.
                             </small>
                         {% endif %}
 
                         {% if pregunta.tipo_respuesta == 'texto_libre' %}
                             <textarea
-                                class="intera-public-control"
                                 name="pregunta_{{ pregunta.id }}"
                             ></textarea>
                         {% else %}
-                            <div class="intera-public-options">
                             {% for opcion in pregunta.opciones %}
-                                <label class="intera-public-option">
+                                <label>
                                     <input
                                         type="{% if pregunta.tipo_respuesta == 'opcion_multiple' %}checkbox{% else %}radio{% endif %}"
                                         name="pregunta_{{ pregunta.id }}"
@@ -240,14 +291,13 @@
                                     {{ opcion.etiqueta }}
                                 </label>
                             {% endfor %}
-                            </div>
                         {% endif %}
                     </section>
                 {% endfor %}
 
-                <div class="intera-public-form-actions">
-                    <button class="intera-public-btn">Enviar respuestas</button>
-                </div>
+                <button class="btn">
+                    Enviar respuestas
+                </button>
             </form>
         {% endif %}
     </main>
