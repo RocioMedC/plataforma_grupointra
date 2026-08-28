@@ -124,6 +124,33 @@ def sellar_nomina_academia(nomina, usuario=None, fecha_pago=None):
     return nomina
 
 
+@transaction.atomic
+def reabrir_nomina_academia(nomina, usuario=None):
+    """Deshace el sellado de la nómina de un docente y la regresa a Borrador
+    (decisión del usuario 2026-08-28: cualquier nómina debe poder
+    modificarse aunque ya esté sellada). Borra los Egresos que generó el
+    sellado — se vuelven a crear al volver a sellar."""
+    if not nomina.esta_sellada:
+        raise NominaAcademiaError(
+            f'La nómina de {nomina.maestro} de {nomina.periodo_mes}/{nomina.periodo_anio} no está sellada.'
+        )
+
+    borrados, _ = Egreso.objects.filter(
+        referencia_externa__startswith=f'academia:nomina:{nomina.id}:',
+    ).delete()
+
+    nomina.estado = NominaAcademia.Estado.BORRADOR
+    nomina.sellada_en = None
+    nomina.save(update_fields=['estado', 'sellada_en'])
+
+    registrar(
+        usuario, nomina, RegistroAuditoria.Accion.MODIFICO,
+        campo='estado', anterior='sellada', nuevo='borrador',
+        detalle=f'Reapertura de nómina de Academia: {borrados} egreso(s) eliminado(s).',
+    )
+    return borrados
+
+
 def sellar_periodo_academia(periodo_mes, periodo_anio, usuario=None, fecha_pago=None):
     """Sella de un golpe todas las nóminas en borrador del mes — el botón
     "Sellar periodo" de la sección 7."""

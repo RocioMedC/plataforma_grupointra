@@ -34,14 +34,14 @@ from .models import (
     TabuladorAcademia, Unidad,
 )
 from .nomina_academia import (
-    NominaAcademiaError, capturar_nomina_academia, sellar_nomina_academia,
-    sellar_periodo_academia, totales_periodo_academia,
+    NominaAcademiaError, capturar_nomina_academia, reabrir_nomina_academia,
+    sellar_nomina_academia, sellar_periodo_academia, totales_periodo_academia,
 )
 from .nomina_semanal import (
     NominaError, calcular_ingreso_generado, ingresos_generados_por_persona,
     marcar_pago, obtener_nomina, periodo_anterior, periodo_por_defecto,
-    periodo_siguiente, sellar_linea, sellar_periodo, sincronizar_nomina,
-    totales_nomina,
+    periodo_siguiente, reabrir_periodo, sellar_linea, sellar_periodo,
+    sincronizar_nomina, totales_nomina,
 )
 from .pdfs import render_pdf
 from .reportes import (
@@ -618,6 +618,17 @@ def nomina_view(request):
             except NominaError as exc:
                 messages.error(request, str(exc))
             return redirect(destino)
+        elif accion == 'reabrir_periodo':
+            try:
+                resultado = reabrir_periodo(nomina, request.user)
+                messages.success(
+                    request,
+                    f"Nómina reabierta a Borrador: {resultado['lineas']} línea(s), "
+                    f"{resultado['egresos_eliminados']} egreso(s) eliminado(s).",
+                )
+            except NominaError as exc:
+                messages.error(request, str(exc))
+            return redirect(destino)
         elif accion == 'estatus_pago':
             linea = get_object_or_404(LineaNominaSemanal, pk=request.POST.get('id'), nomina=nomina)
             try:
@@ -957,6 +968,17 @@ def nomina_academia_view(request):
                     request,
                     f'Nómina de {nomina.maestro} sellada: se generaron sus egresos por '
                     f'{_dinero(nomina.total)}.',
+                )
+            except NominaAcademiaError as exc:
+                messages.error(request, str(exc))
+            return redirect('finanzas:nomina_academia')
+        elif accion == 'reabrir_academia':
+            nomina = get_object_or_404(NominaAcademia, pk=request.POST.get('id'))
+            try:
+                borrados = reabrir_nomina_academia(nomina, request.user)
+                messages.success(
+                    request,
+                    f'Nómina de {nomina.maestro} reabierta a Borrador: {borrados} egreso(s) eliminado(s).',
                 )
             except NominaAcademiaError as exc:
                 messages.error(request, str(exc))

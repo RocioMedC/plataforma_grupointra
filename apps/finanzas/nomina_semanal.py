@@ -309,6 +309,38 @@ def sellar_periodo(nomina, usuario=None, fecha_pago=None):
     return {'selladas': selladas, 'omitidas': omitidas}
 
 
+@transaction.atomic
+def reabrir_periodo(nomina, usuario=None):
+    """Deshace el sellado de una nómina y la regresa a Borrador para poder
+    corregirla con el formulario normal (decisión del usuario 2026-08-28:
+    cualquier nómina debe poder modificarse aunque ya esté sellada, en vez de
+    pasar siempre por un Ajuste). Borra los Egresos que generó el sellado —
+    se vuelven a crear al volver a sellar—; si alguno ya se reconcilió a mano
+    fuera del sistema, revisar antes de reabrir."""
+    if not nomina.esta_sellada:
+        raise NominaError('Esta nómina no está sellada.')
+
+    lineas = list(nomina.lineas.filter(sellada=True))
+    egresos_eliminados = 0
+    for linea in lineas:
+        egresos_eliminados += linea.egresos.all().delete()[0]
+        linea.sellada = False
+        linea.sellada_en = None
+        linea.save(update_fields=['sellada', 'sellada_en'])
+
+    nomina.estado = NominaSemanal.Estado.BORRADOR
+    nomina.sellada_en = None
+    nomina.save(update_fields=['estado', 'sellada_en'])
+
+    registrar(
+        usuario, nomina, RegistroAuditoria.Accion.MODIFICO,
+        campo='estado', anterior='sellada', nuevo='borrador',
+        detalle=f'Reapertura de periodo: {len(lineas)} línea(s) reabierta(s), '
+                f'{egresos_eliminados} egreso(s) eliminado(s).',
+    )
+    return {'lineas': len(lineas), 'egresos_eliminados': egresos_eliminados}
+
+
 def marcar_pago(linea, estatus, usuario=None):
     """Marca una línea ya sellada como pagada (o de vuelta a pendiente) y
     arrastra ese cambio a los Egresos que generó, para que el tablero y los
