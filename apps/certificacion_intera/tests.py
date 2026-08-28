@@ -1,4 +1,6 @@
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import Group, Permission, User
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.files.storage import default_storage
 from django.db.models.deletion import ProtectedError
 from django.test import Client, SimpleTestCase, TestCase
 from django.test.utils import override_settings
@@ -34,6 +36,12 @@ from apps.portafolio.models import (
     Instrumento,
     PreguntaInstrumento,
     RevisionInstrumento,
+    RelacionDocumento,
+    VersionDocumento,
+)
+from apps.portafolio.services_documentales import (
+    incorporar_documento_contextual,
+    obtener_documentos_contextuales,
 )
 from apps.portafolio.services_entrevista import CLAVE_ENTREVISTA
 from apps.portafolio.services_calificacion import (
@@ -43,6 +51,22 @@ from apps.portafolio.services_calificacion import (
 )
 from . import consultorio_web
 from .templatetags.intera_publica import nombre_publico_intera
+
+
+def crear_documento_con_version(**datos):
+    archivo = datos.pop('archivo')
+    version = datos.pop('version', '1.0')
+    cargado_por = datos.pop('cargado_por', None)
+    observaciones = datos.pop('observaciones', '')
+    datos.pop('tipo_archivo', None)
+    documento = Documento.objects.create(**datos)
+    documento.agregar_version(
+        archivo=archivo,
+        version=version,
+        cargado_por=cargado_por,
+        observaciones=observaciones,
+    )
+    return documento
 
 
 class NombrePublicoInstrumentoTests(SimpleTestCase):
@@ -99,7 +123,7 @@ def crear_instrumento_bateria(
     variante='Adolescentes',
 ):
     categoria, _ = CategoriaDocumento.objects.get_or_create(nombre='Pruebas de batería')
-    documento = Documento.objects.create(
+    documento = crear_documento_con_version(
         nombre=f'Fuente {clave}',
         categoria=categoria,
         archivo=f'portafolio/documentos/{clave}.xlsx',
@@ -277,6 +301,70 @@ class EscuelaRevisionYFichaTests(TestCase):
 )
 class DashboardCertificacionInteraTests(TestCase):
 
+    def _usuario_y_escuela_para_acceso_publico(self):
+        usuario = User.objects.create_user(username='acceso_escuela', password='secreto')
+        grupo, _ = Group.objects.get_or_create(name='Certificación')
+        usuario.groups.add(grupo)
+        escuela = Escuela.objects.create(
+            nombre='Escuela con acceso',
+            director='Dirección',
+            cantidad_total_alumnos=100,
+            estado='México',
+            municipio='Toluca',
+        )
+        self.client.force_login(usuario)
+        return usuario, escuela
+
+    def test_ficha_reutiliza_acceso_general_del_proceso_vigente(self):
+        usuario, escuela = self._usuario_y_escuela_para_acceso_publico()
+        proceso = ProcesoCertificacion.objects.create(
+            escuela=escuela,
+            ciclo_escolar='2026-2027',
+            nombre='Proceso vigente',
+            estado=ProcesoCertificacion.Estado.APLICACION,
+            fecha_inicio=date(2026, 8, 1),
+            creado_por=usuario,
+        )
+        publica = AplicacionPublica.objects.create(proceso=proceso)
+
+        respuesta = self.client.get(
+            reverse('certificacion_intera:escuela_detalle', args=[escuela.id]),
+        )
+
+        url_absoluta = 'http://testserver' + publica.url_publica
+        self.assertContains(respuesta, 'Acceso para participantes')
+        self.assertContains(respuesta, 'Proceso vigente')
+        self.assertContains(respuesta, url_absoluta, count=2)
+        self.assertContains(respuesta, publica.url_publica)
+        self.assertContains(
+            respuesta,
+            reverse('certificacion_intera:aplicacion_publica_proceso_qr', args=[proceso.id]),
+        )
+        self.assertEqual(AplicacionPublica.objects.filter(proceso=proceso).count(), 1)
+
+    def test_ficha_sin_acceso_no_lo_genera_y_enlaza_al_proceso_vigente(self):
+        usuario, escuela = self._usuario_y_escuela_para_acceso_publico()
+        proceso = ProcesoCertificacion.objects.create(
+            escuela=escuela,
+            ciclo_escolar='2026-2027',
+            nombre='Proceso sin acceso',
+            estado=ProcesoCertificacion.Estado.CONFIGURACION,
+            fecha_inicio=date(2026, 8, 1),
+            creado_por=usuario,
+        )
+
+        respuesta = self.client.get(
+            reverse('certificacion_intera:escuela_detalle', args=[escuela.id]),
+        )
+
+        self.assertContains(respuesta, 'Este proceso todavía no cuenta con un acceso público.')
+        self.assertContains(respuesta, 'Ir al proceso →')
+        self.assertContains(
+            respuesta,
+            reverse('certificacion_intera:proceso_detalle', args=[proceso.id]),
+        )
+        self.assertFalse(AplicacionPublica.objects.filter(proceso=proceso).exists())
+
     def test_usuario_autorizado_puede_ver_el_dashboard(self):
         usuario = User.objects.create_user(username='certificacion', password='secreto')
         grupo, _ = Group.objects.get_or_create(name='Certificación')
@@ -290,6 +378,54 @@ class DashboardCertificacionInteraTests(TestCase):
         )
         self.assertContains(respuesta, 'Procesos activos')
         self.assertContains(respuesta, 'Trabajo pendiente')
+
+    def test_listado_separa_estado_operativo_etapa_y_aplica_filtros(self):
+        usuario = User.objects.create_user(username='filtros-proceso', password='secreto')
+        usuario.groups.add(Group.objects.get_or_create(name='Certificación')[0])
+        escuela = Escuela.objects.create(
+            nombre='Escuela filtros',
+            director='Dirección',
+            cantidad_total_alumnos=50,
+            estado='México',
+            municipio='Toluca',
+        )
+        ProcesoCertificacion.objects.create(
+            escuela=escuela,
+            ciclo_escolar='2026-2027',
+            nombre='Proceso configurándose',
+            estado=ProcesoCertificacion.Estado.CONFIGURACION,
+            fecha_inicio=date(2026, 8, 1),
+        )
+        ProcesoCertificacion.objects.create(
+            escuela=escuela,
+            ciclo_escolar='2025-2026',
+            nombre='Proceso histórico',
+            estado=ProcesoCertificacion.Estado.CERRADO,
+            fecha_inicio=date(2025, 8, 1),
+            fecha_cierre=date(2026, 6, 30),
+        )
+        self.client.force_login(usuario)
+        url = reverse('certificacion_intera:procesos')
+
+        listado = self.client.get(url)
+        self.assertContains(listado, 'Estado operativo')
+        self.assertContains(listado, 'Activo')
+        self.assertContains(listado, 'Configuración')
+        self.assertContains(listado, 'Cerrado')
+        self.assertContains(listado, 'Finalizado')
+
+        activos = self.client.get(url, {'operativo': 'activo'})
+        self.assertContains(activos, 'Proceso configurándose')
+        self.assertNotContains(activos, 'Proceso histórico')
+        cerrados = self.client.get(url, {'operativo': 'cerrado'})
+        self.assertContains(cerrados, 'Proceso histórico')
+        self.assertNotContains(cerrados, 'Proceso configurándose')
+        configuracion = self.client.get(
+            url,
+            {'etapa': ProcesoCertificacion.Estado.CONFIGURACION},
+        )
+        self.assertContains(configuracion, 'Proceso configurándose')
+        self.assertNotContains(configuracion, 'Proceso histórico')
 
     def test_usuario_sin_grupo_recibe_error_de_permiso(self):
         usuario = User.objects.create_user(username='sin_permiso', password='secreto')
@@ -431,7 +567,7 @@ class FlujoInteraConPortafolioTests(TestCase):
             fecha_inicio='2026-08-02',
         )
         categoria, _ = CategoriaDocumento.objects.get_or_create(nombre='Instrumento')
-        documento = Documento.objects.create(
+        documento = crear_documento_con_version(
             nombre='Origen',
             categoria=categoria,
             archivo='portafolio/documentos/origen.xlsx',
@@ -491,6 +627,12 @@ class FlujoInteraConPortafolioTests(TestCase):
             proceso=proceso,
             instrumento=instrumento,
         )
+        BitacoraProceso.objects.create(
+            proceso=proceso,
+            evento='Evento visible',
+            descripcion='Detalle reutilizado',
+            usuario=usuario,
+        )
         self.client.force_login(usuario)
         panel = self.client.get(
             reverse('certificacion_intera:proceso_detalle', args=[proceso.id]),
@@ -506,13 +648,20 @@ class FlujoInteraConPortafolioTests(TestCase):
             reverse('certificacion_intera:proceso_detalle', args=[proceso.id]),
             {'tab': 'bitacora'},
         )
+        bitacora_independiente = self.client.get(
+            reverse('certificacion_intera:proceso_bitacora', args=[proceso.id]),
+        )
         self.assertEqual(panel.status_code, 200)
         self.assertContains(panel, 'Batería y aplicación')
         self.assertContains(panel, 'Instrumento panel')
         self.assertContains(publicas, 'Abrir enlace')
         self.assertEqual(bitacora.status_code, 200)
         self.assertContains(bitacora, 'Bitácora')
-        self.assertContains(bitacora, 'Consultar bitácora')
+        self.assertContains(bitacora, 'Evento visible')
+        self.assertContains(bitacora, 'Detalle reutilizado')
+        self.assertNotContains(bitacora, 'Consultar bitácora')
+        self.assertContains(bitacora_independiente, 'Evento visible')
+        self.assertContains(bitacora_independiente, 'Detalle reutilizado')
 
     def test_enlace_publico_usa_portafolio_y_persiste_una_respuesta(self):
         usuario = User.objects.create_user(
@@ -522,7 +671,7 @@ class FlujoInteraConPortafolioTests(TestCase):
         grupo, _ = Group.objects.get_or_create(name='Certificación')
         usuario.groups.add(grupo)
         categoria = CategoriaDocumento.objects.create(nombre='Instrumentos públicos')
-        documento = Documento.objects.create(
+        documento = crear_documento_con_version(
             nombre='Cuestionario origen',
             categoria=categoria,
             archivo='portafolio/documentos/cuestionario.xlsx',
@@ -1619,6 +1768,124 @@ class CrearProcesoConBateriaTests(TestCase):
         },
     },
 )
+class ListadosAdministrativosFiltrosTests(TestCase):
+
+    def setUp(self):
+        usuario = User.objects.create_user(username='filtros-listados', password='secreto')
+        usuario.groups.add(Group.objects.get_or_create(name='Certificación')[0])
+        self.client.force_login(usuario)
+        self.escuela_a = Escuela.objects.create(
+            nombre='Escuela Norte', director='Dirección', cantidad_total_alumnos=30,
+            estado='México', municipio='Toluca', contacto='Contacto Norte',
+        )
+        self.escuela_b = Escuela.objects.create(
+            nombre='Escuela Sur', director='Dirección', cantidad_total_alumnos=30,
+            estado='Puebla', municipio='Puebla', contacto='Contacto Sur',
+        )
+        self.proceso_a = ProcesoCertificacion.objects.create(
+            escuela=self.escuela_a, nombre='Proceso Norte', ciclo_escolar='2026-2027',
+            fecha_inicio=date(2026, 8, 1),
+        )
+        self.proceso_b = ProcesoCertificacion.objects.create(
+            escuela=self.escuela_b, nombre='Proceso Sur', ciclo_escolar='2026-2027',
+            fecha_inicio=date(2026, 8, 1),
+        )
+        self.participante_a = Participante.objects.create(
+            proceso=self.proceso_a, nombre='Ana Norte', numero_alumno='N-01',
+        )
+        self.participante_b = Participante.objects.create(
+            proceso=self.proceso_b, nombre='Bruno Sur', numero_alumno='S-01',
+        )
+        self.instrumento = Instrumento.objects.create(
+            nombre='Instrumento filtros', clave='instrumento-filtros-listados',
+        )
+        aplicacion = AplicacionInstrumento.objects.create(
+            proceso=self.proceso_a,
+            participante=self.participante_a,
+            instrumento=self.instrumento,
+            estado=AplicacionInstrumento.Estado.RESPONDIDA,
+        )
+        ResultadoInstrumento.objects.create(
+            aplicacion=aplicacion,
+            estado=ResultadoInstrumento.Estado.EVALUADO,
+        )
+        EntrevistaSeguimiento.objects.create(
+            participante=self.participante_a,
+            nombre_confirmado='Ana Norte',
+            numero_alumno_confirmado='N-01',
+            fecha=date(2026, 8, 20),
+            decision=EntrevistaSeguimiento.Decision.CONSEJERIA,
+        )
+        EntrevistaSeguimiento.objects.create(
+            participante=self.participante_b,
+            nombre_confirmado='Bruno Sur',
+            numero_alumno_confirmado='S-01',
+            fecha=date(2026, 8, 21),
+            decision=EntrevistaSeguimiento.Decision.FINALIZAR,
+        )
+        Consejeria.objects.create(
+            participante=self.participante_a,
+            fecha=date(2026, 8, 22),
+            observaciones='Pendiente Norte',
+            estado=Consejeria.Estado.PENDIENTE,
+        )
+        Consejeria.objects.create(
+            participante=self.participante_b,
+            fecha=date(2026, 8, 23),
+            observaciones='Realizada Sur',
+            estado=Consejeria.Estado.REALIZADA,
+        )
+
+    def test_escuelas_conserva_filtros_y_usa_barra_compartida(self):
+        respuesta = self.client.get(
+            reverse('certificacion_intera:escuelas'),
+            {'q': 'Norte', 'estado': 'México', 'municipio': 'Toluca'},
+        )
+        self.assertContains(respuesta, 'Escuela Norte')
+        self.assertNotContains(respuesta, 'Escuela Sur')
+        self.assertContains(respuesta, 'intera-filter-grid--schools')
+        self.assertContains(respuesta, 'value="México"')
+        self.assertContains(respuesta, 'selected')
+
+    def test_participantes_filtra_por_escuela_proceso_y_resultados(self):
+        respuesta = self.client.get(
+            reverse('certificacion_intera:participantes'),
+            {'escuela': self.escuela_a.id, 'proceso': self.proceso_a.id, 'estado': 'resultados'},
+        )
+        self.assertContains(respuesta, 'Ana Norte')
+        self.assertNotContains(respuesta, 'Bruno Sur')
+        self.assertContains(respuesta, 'value="resultados" selected')
+        self.assertContains(respuesta, '>Limpiar</a>')
+
+    def test_entrevistas_filtra_por_decision_y_fecha_real(self):
+        respuesta = self.client.get(
+            reverse('certificacion_intera:entrevistas'),
+            {'estado': EntrevistaSeguimiento.Decision.CONSEJERIA, 'fecha': '2026-08-20'},
+        )
+        self.assertContains(respuesta, 'Ana Norte')
+        self.assertNotContains(respuesta, 'Bruno Sur')
+        self.assertContains(respuesta, 'value="2026-08-20"')
+
+    def test_seguimiento_filtra_por_estado_real(self):
+        respuesta = self.client.get(
+            reverse('certificacion_intera:seguimiento'),
+            {'estado': Consejeria.Estado.PENDIENTE, 'proceso': self.proceso_a.id},
+        )
+        self.assertContains(respuesta, 'Ana Norte')
+        self.assertNotContains(respuesta, 'Bruno Sur')
+        self.assertContains(respuesta, 'value="pendiente" selected')
+
+
+@override_settings(
+    STORAGES={
+        'default': {
+            'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        },
+        'staticfiles': {
+            'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+        },
+    },
+)
 class AplicacionPublicaGeneralTests(TestCase):
 
     def setUp(self):
@@ -1673,11 +1940,12 @@ class AplicacionPublicaGeneralTests(TestCase):
             'participantes',
             'bateria',
             'entrevistas',
+            'resultados',
             'seguimiento',
-            'configuracion',
             'bitacora',
         ):
             self.assertContains(detalle, '?tab=' + tab)
+        self.assertNotContains(detalle, 'Accesos rápidos')
         url = reverse(
             'certificacion_intera:aplicacion_publica_proceso_generar',
             args=[self.proceso.id],
@@ -1688,6 +1956,26 @@ class AplicacionPublicaGeneralTests(TestCase):
             AplicacionPublica.objects.filter(proceso=self.proceso).count(),
             1,
         )
+
+    def test_activar_acceso_avanza_configuracion_a_aplicacion(self):
+        publica = AplicacionPublica.objects.create(
+            proceso=self.proceso,
+            estado=AplicacionPublica.Estado.CERRADA,
+        )
+
+        respuesta = self.client.post(
+            reverse(
+                'certificacion_intera:aplicacion_publica_proceso_estado',
+                args=[self.proceso.id],
+            ),
+            {'accion': 'activar'},
+        )
+
+        self.assertEqual(respuesta.status_code, 302)
+        publica.refresh_from_db()
+        self.proceso.refresh_from_db()
+        self.assertEqual(publica.estado, AplicacionPublica.Estado.ACTIVA)
+        self.assertEqual(self.proceso.estado, ProcesoCertificacion.Estado.APLICACION)
 
     def test_procesos_distintos_tienen_accesos_y_qr_distintos(self):
         otra_escuela = Escuela.objects.create(
@@ -2049,6 +2337,272 @@ class AplicacionPublicaGeneralTests(TestCase):
         self.assertContains(
             respuesta,
             ADVERTENCIA_RESULTADO_ORIENTATIVO,
+        )
+
+
+@override_settings(
+    STORAGES={
+        'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+        'staticfiles': {
+            'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+        },
+    },
+)
+class ResultadosParticipanteTests(TestCase):
+
+    def setUp(self):
+        self.usuario = User.objects.create_user(
+            username='resultados-consolidados',
+            password='secreto',
+        )
+        self.usuario.groups.add(
+            Group.objects.get_or_create(name='Certificación')[0],
+        )
+        self.client.force_login(self.usuario)
+        self.escuela = Escuela.objects.create(
+            nombre='Escuela resultados',
+            director='Dirección',
+            cantidad_total_alumnos=50,
+            estado='Coahuila',
+            municipio='Saltillo',
+        )
+        self.proceso = ProcesoCertificacion.objects.create(
+            escuela=self.escuela,
+            nombre='Proceso resultados',
+            ciclo_escolar='RESULTADOS-2026',
+            fecha_inicio=date(2026, 1, 1),
+        )
+        self.participante = Participante.objects.create(
+            proceso=self.proceso,
+            nombre='Alumno consolidado',
+            numero_alumno='CONSOLIDADO-1',
+            fecha_nacimiento=date(2010, 1, 1),
+        )
+
+    def _instrumento(self, clave, nombre, orden):
+        instrumento = Instrumento.objects.create(
+            clave=clave,
+            nombre=nombre,
+            version='1.0',
+        )
+        ConfiguracionInstrumento.objects.create(
+            proceso=self.proceso,
+            instrumento=instrumento,
+            orden=orden,
+        )
+        return instrumento
+
+    def _aplicacion(
+        self,
+        instrumento,
+        participante=None,
+        estado=AplicacionInstrumento.Estado.RESPONDIDA,
+        puntaje=10,
+        interpretacion='Interpretación persistida',
+        detalle=None,
+    ):
+        return AplicacionInstrumento.objects.create(
+            proceso=(participante or self.participante).proceso,
+            participante=participante or self.participante,
+            instrumento=instrumento,
+            estado=estado,
+            puntaje_total=puntaje,
+            interpretacion=interpretacion,
+            resultado_detalle=detalle or {'Resumen general': 'Dato persistido'},
+        )
+
+    def test_un_instrumento_respondido_abre_y_conserva_resultado_individual(self):
+        instrumento = self._instrumento('resultado-unico', 'Instrumento único', 1)
+        aplicacion = self._aplicacion(instrumento, puntaje=18)
+
+        consolidado = self.client.get(
+            reverse(
+                'certificacion_intera:resultados_participante',
+                args=[self.participante.id],
+            ),
+        )
+        individual = self.client.get(
+            reverse('certificacion_intera:resultado', args=[aplicacion.id]),
+        )
+
+        self.assertEqual(consolidado.status_code, 200)
+        self.assertContains(consolidado, 'Instrumento único')
+        self.assertContains(consolidado, '18.00')
+        self.assertContains(consolidado, 'Interpretación persistida')
+        self.assertContains(consolidado, '1/1')
+        self.assertEqual(individual.status_code, 200)
+        self.assertContains(individual, 'Instrumento único')
+        self.assertContains(individual, 'Respuestas registradas')
+
+    def test_varios_resultados_respetan_orden_y_no_mezclan_participantes_o_procesos(self):
+        segundo = self._instrumento('resultado-segundo', 'Segundo en batería', 2)
+        primero = self._instrumento('resultado-primero', 'Primero en batería', 1)
+        self._aplicacion(segundo, interpretacion='Resultado segundo')
+        self._aplicacion(primero, interpretacion='Resultado primero')
+
+        otro = Participante.objects.create(
+            proceso=self.proceso,
+            nombre='Otro alumno',
+            numero_alumno='OTRO-1',
+        )
+        self._aplicacion(
+            primero,
+            participante=otro,
+            interpretacion='NO MEZCLAR OTRO PARTICIPANTE',
+        )
+        otra_escuela = Escuela.objects.create(
+            nombre='Otra escuela',
+            director='Dirección',
+            cantidad_total_alumnos=10,
+            estado='Coahuila',
+            municipio='Torreón',
+        )
+        otro_proceso = ProcesoCertificacion.objects.create(
+            escuela=otra_escuela,
+            nombre='Otro proceso',
+            ciclo_escolar='OTRO-2026',
+            fecha_inicio=date(2026, 1, 1),
+        )
+        participante_otro_proceso = Participante.objects.create(
+            proceso=otro_proceso,
+            nombre='Alumno otro proceso',
+            numero_alumno='OTRO-PROCESO-1',
+        )
+        instrumento_otro_proceso = Instrumento.objects.create(
+            clave='solo-otro-proceso',
+            nombre='NO MEZCLAR OTRO PROCESO',
+        )
+        self._aplicacion(
+            instrumento_otro_proceso,
+            participante=participante_otro_proceso,
+            interpretacion='NO MEZCLAR RESULTADO OTRO PROCESO',
+        )
+
+        respuesta = self.client.get(
+            reverse(
+                'certificacion_intera:resultados_participante',
+                args=[self.participante.id],
+            ),
+        )
+        contenido = respuesta.content.decode()
+
+        self.assertLess(
+            contenido.index('Primero en batería'),
+            contenido.index('Segundo en batería'),
+        )
+        self.assertNotContains(respuesta, 'NO MEZCLAR OTRO PARTICIPANTE')
+        self.assertNotContains(respuesta, 'NO MEZCLAR OTRO PROCESO')
+        self.assertNotContains(respuesta, 'NO MEZCLAR RESULTADO OTRO PROCESO')
+
+    def test_pendiente_aparece_sin_inventar_resultado(self):
+        instrumento = self._instrumento('resultado-pendiente', 'Instrumento pendiente', 1)
+        self._aplicacion(
+            instrumento,
+            estado=AplicacionInstrumento.Estado.PENDIENTE,
+            puntaje=None,
+            interpretacion='',
+            detalle={},
+        )
+
+        respuesta = self.client.get(
+            reverse(
+                'certificacion_intera:resultados_participante',
+                args=[self.participante.id],
+            ),
+        )
+
+        self.assertContains(respuesta, 'Instrumento pendiente')
+        self.assertContains(respuesta, 'Pendiente')
+        self.assertContains(respuesta, 'Este instrumento está pendiente de respuesta.')
+        self.assertNotContains(respuesta, '<b>Puntaje:</b>', html=True)
+
+    def test_respondido_sin_calculo_conserva_mensaje_profesional(self):
+        instrumento = self._instrumento('sin-calculadora', 'Sin cálculo automático', 1)
+        aplicacion = self._aplicacion(
+            instrumento,
+            interpretacion='',
+            puntaje=None,
+            detalle={},
+        )
+
+        respuesta = self.client.get(
+            reverse(
+                'certificacion_intera:resultados_participante',
+                args=[self.participante.id],
+            ),
+        )
+
+        self.assertContains(
+            respuesta,
+            'Este instrumento aún no cuenta con una calculadora automática',
+        )
+        self.assertContains(
+            respuesta,
+            reverse('certificacion_intera:resultado', args=[aplicacion.id]),
+        )
+
+    def test_plutchik_conserva_advertencia_prioritaria(self):
+        instrumento = self._instrumento(
+            'ersp-plutchik-adolescentes',
+            'Escala de Plutchik',
+            1,
+        )
+        self._aplicacion(
+            instrumento,
+            puntaje=1,
+            detalle={
+                'puntaje_total': 1,
+                'respuestas_afirmativas': 1,
+                'reactivos_criticos_afirmativos': [13],
+            },
+        )
+
+        respuesta = self.client.get(
+            reverse(
+                'certificacion_intera:resultados_participante',
+                args=[self.participante.id],
+            ),
+        )
+
+        self.assertContains(respuesta, 'ALERTA DE ATENCIÓN EL MISMO DÍA')
+        self.assertContains(respuesta, 'Reactivos críticos afirmativos')
+
+    def test_expediente_enlaza_los_resultados_del_participante_correcto(self):
+        instrumento = self._instrumento('resultado-enlace', 'Instrumento enlazado', 1)
+        self._aplicacion(instrumento)
+
+        respuesta = self.client.get(
+            reverse(
+                'certificacion_intera:participante_detalle',
+                args=[self.participante.id],
+            ),
+        )
+
+        self.assertContains(respuesta, 'Ver todos los resultados →')
+        self.assertContains(
+            respuesta,
+            reverse(
+                'certificacion_intera:resultados_participante',
+                args=[self.participante.id],
+            ),
+        )
+        self.assertContains(respuesta, 'intera-application-result-row')
+        self.assertContains(respuesta, 'intera-back-link')
+        self.assertContains(respuesta, 'intera-text-link')
+        self.assertContains(respuesta, 'intera-small-action', count=2)
+        self.assertContains(
+            respuesta,
+            reverse(
+                'certificacion_intera:consejeria_crear',
+                args=[self.participante.id],
+            ),
+        )
+        self.assertContains(
+            respuesta,
+            reverse(
+                'certificacion_intera:canalizacion_crear',
+                args=[self.participante.id],
+            ),
         )
 
 
@@ -2539,6 +3093,28 @@ class CalculoDASSAdolescenteInteraTests(TestCase):
         self.assertContains(pagina, 'Ansiedad')
         self.assertContains(pagina, 'Estrés')
 
+    def test_revision_calculadora_persistida_no_cambia_si_cambia_la_calculadora(self):
+        aplicacion = self._aplicacion(date(2010, 1, 1))
+        self._responder(aplicacion)
+        aplicacion.refresh_from_db()
+        snapshot_original = dict(aplicacion.revision_calculadora)
+
+        calculadora = self.instrumento.calculadoras.get()
+        calculadora.estado = CalculadoraInstrumento.Estado.BLOQUEADA
+        calculadora.clave = 'calculadora-modificada-despues'
+        calculadora.save(update_fields=['estado', 'clave'])
+        aplicacion.refresh_from_db()
+
+        self.assertEqual(aplicacion.revision_calculadora, snapshot_original)
+        self.assertEqual(
+            aplicacion.revision_calculadora['estado'],
+            CalculadoraInstrumento.Estado.ACTIVA,
+        )
+        self.assertNotEqual(
+            aplicacion.revision_calculadora['clave'],
+            calculadora.clave,
+        )
+
     def test_rosenberg_recibe_contexto_completo_y_persiste_resultado(self):
         respuesta, aplicacion = self._crear_y_responder_instrumento(
             'rse-autoestima',
@@ -2694,3 +3270,364 @@ class CalculoDASSAdolescenteInteraTests(TestCase):
             reverse('certificacion_intera:resultado', args=[aplicacion.id]),
         )
         self.assertContains(edad_no_aplicable, 'edad no corresponde a esta variante')
+
+
+class ContratosHistoricosInteraTests(TestCase):
+    def setUp(self):
+        self.escuela = Escuela.objects.create(
+            nombre='Escuela contratos', director='Direccion',
+            cantidad_total_alumnos=1, estado='Estado', municipio='Municipio',
+        )
+        self.proceso = ProcesoCertificacion.objects.create(
+            escuela=self.escuela, ciclo_escolar='contratos', fecha_inicio=date.today(),
+        )
+        self.participante = Participante.objects.create(
+            proceso=self.proceso, nombre='Persona historica', numero_alumno='CH-1',
+        )
+        self.instrumento = Instrumento.objects.create(
+            nombre='Instrumento historico', clave='instrumento-historico',
+            version='1.0',
+        )
+        self.pregunta = PreguntaInstrumento.objects.create(
+            instrumento=self.instrumento, orden=1, clave='H-1', texto='Pregunta historica',
+        )
+        self.revision = RevisionInstrumento.objects.create(
+            instrumento=self.instrumento, version='1.0',
+            estructura={'preguntas': [{'id': self.pregunta.id, 'clave': 'H-1'}]},
+        )
+
+    def test_eliminar_pregunta_elimina_en_cascada_respuesta_instrumento(self):
+        aplicacion = AplicacionInstrumento.objects.create(
+            proceso=self.proceso, participante=self.participante,
+            instrumento=self.instrumento,
+        )
+        respuesta = RespuestaInstrumento.objects.create(
+            aplicacion=aplicacion, pregunta=self.pregunta, valor='respuesta historica',
+        )
+
+        self.pregunta.delete()
+
+        self.assertFalse(PreguntaInstrumento.objects.filter(pk=self.pregunta.pk).exists())
+        self.assertFalse(RespuestaInstrumento.objects.filter(pk=respuesta.pk).exists())
+
+    def test_entrevista_y_respuesta_protegen_revision_instrumento_y_pregunta(self):
+        usuario = User.objects.create_user(username='responsable-historico')
+        entrevista = EntrevistaUnoAUno.objects.create(
+            participante=self.participante, proceso=self.proceso,
+            instrumento=self.instrumento, revision_plantilla=self.revision,
+            responsable=usuario, iniciada_por=usuario,
+        )
+        respuesta = RespuestaEntrevistaUnoAUno.objects.create(
+            entrevista=entrevista, pregunta=self.pregunta, revision=1,
+            valor='respuesta protegida',
+        )
+
+        with self.assertRaises(ProtectedError):
+            self.revision.delete()
+        with self.assertRaises(ProtectedError):
+            self.pregunta.delete()
+        with self.assertRaises(ProtectedError):
+            self.instrumento.delete()
+
+        self.assertTrue(EntrevistaUnoAUno.objects.filter(pk=entrevista.pk).exists())
+        self.assertTrue(RespuestaEntrevistaUnoAUno.objects.filter(pk=respuesta.pk).exists())
+
+
+@override_settings(
+    STORAGES={
+        'default': {'BACKEND': 'django.core.files.storage.InMemoryStorage'},
+        'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+    },
+)
+class DocumentosProcesoInteraTests(TestCase):
+    def setUp(self):
+        self.grupo = Group.objects.get(name='Certificación')
+        self.usuario = User.objects.create_user(username='documentos-intera', password='x')
+        self.usuario.groups.add(self.grupo)
+        self.client.force_login(self.usuario)
+        self.escuela = Escuela.objects.create(
+            nombre='Escuela documental', director='Dirección',
+            cantidad_total_alumnos=10, estado='Estado', municipio='Municipio',
+        )
+        self.proceso = ProcesoCertificacion.objects.create(
+            escuela=self.escuela, ciclo_escolar='2026-2027',
+            nombre='Proceso documental', fecha_inicio=date.today(),
+        )
+        self.otro_proceso = ProcesoCertificacion.objects.create(
+            escuela=self.escuela, ciclo_escolar='2027-2028',
+            nombre='Otro proceso', fecha_inicio=date.today(),
+        )
+
+    def documento(self, nombre, *, ambito=Documento.Ambito.ESPECIFICO, modulo=None,
+                  proceso=None, nivel_modulo=False):
+        documento = crear_documento_con_version(
+            nombre=nombre,
+            archivo=SimpleUploadedFile(f'{nombre}.txt', nombre.encode()),
+            ambito=ambito,
+        )
+        if modulo:
+            RelacionDocumento.objects.create(
+                documento=documento,
+                modulo=modulo,
+                tipo_proceso='' if nivel_modulo else 'proceso_certificacion',
+                id_externo='' if nivel_modulo else str((proceso or self.proceso).id),
+                creado_por=self.usuario,
+            )
+            documento.refresh_from_db()
+        return documento
+
+    def quitar_permiso_grupo(self, codename):
+        permiso = Permission.objects.get(
+            content_type__app_label='portafolio', codename=codename,
+        )
+        self.grupo.permissions.remove(permiso)
+        self.usuario = User.objects.get(pk=self.usuario.pk)
+        self.client.force_login(self.usuario)
+
+    def test_centro_muestra_generales_modulo_y_todos_los_procesos_intera(self):
+        actual = self.documento('Documento actual', modulo='certificacion_intera')
+        modulo = self.documento(
+            'Documento del modulo', modulo='certificacion_intera', nivel_modulo=True,
+        )
+        otro = self.documento(
+            'Documento de otro proceso', modulo='certificacion_intera',
+            proceso=self.otro_proceso,
+        )
+        finanzas = self.documento('Documento finanzas', modulo='finanzas')
+        ventas = self.documento('Documento ventas', modulo='ventas')
+        general = self.documento('Documento general', ambito=Documento.Ambito.GENERAL)
+        sin_clasificar = self.documento(
+            'Documento sin clasificar', ambito=Documento.Ambito.SIN_CLASIFICAR,
+        )
+
+        respuesta = self.client.get(
+            reverse('certificacion_intera:documentos'),
+        )
+
+        for documento in (actual, otro, modulo, general):
+            self.assertContains(respuesta, documento.nombre)
+        for documento in (finanzas, ventas, sin_clasificar):
+            self.assertNotContains(respuesta, documento.nombre)
+
+    def test_busqueda_se_aplica_despues_del_alcance(self):
+        visible = self.documento('Acta autorizada', modulo='certificacion_intera')
+        oculto = self.documento(
+            'Acta confidencial', modulo='certificacion_intera', proceso=self.otro_proceso,
+        )
+        respuesta = self.client.get(
+            reverse('certificacion_intera:documentos'),
+            {'q': 'Acta', 'proceso': self.proceso.id},
+        )
+        self.assertContains(respuesta, visible.nombre)
+        self.assertNotContains(respuesta, oculto.nombre)
+
+    def test_sin_consultar_componente_no_expone_documentos(self):
+        documento = self.documento('No expuesto', modulo='certificacion_intera')
+        self.quitar_permiso_grupo('consultar_documento')
+        respuesta = self.client.get(
+            reverse('certificacion_intera:documentos'),
+        )
+        self.assertNotContains(respuesta, documento.nombre)
+        self.assertContains(respuesta, 'No tienes permiso para consultar documentos')
+
+    def test_descarga_autorizada_general_y_del_proceso(self):
+        for documento in (
+            self.documento('Descarga proceso', modulo='certificacion_intera'),
+            self.documento('Descarga general', ambito=Documento.Ambito.GENERAL),
+        ):
+            respuesta = self.client.get(reverse(
+                'certificacion_intera:proceso_documento_descargar',
+                args=[self.proceso.id, documento.id],
+            ))
+            self.assertEqual(respuesta.status_code, 200)
+            respuesta.close()
+
+    def test_descarga_rechaza_permiso_otro_proceso_modulo_e_id_manipulado(self):
+        otro = self.documento(
+            'Descarga ajena', modulo='certificacion_intera', proceso=self.otro_proceso,
+        )
+        finanzas = self.documento('Descarga finanzas', modulo='finanzas')
+        for documento in (otro, finanzas):
+            self.assertEqual(self.client.get(reverse(
+                'certificacion_intera:proceso_documento_descargar',
+                args=[self.proceso.id, documento.id],
+            )).status_code, 404)
+        self.quitar_permiso_grupo('descargar_documento')
+        general = self.documento('Sin permiso descarga', ambito=Documento.Ambito.GENERAL)
+        self.assertEqual(self.client.get(reverse(
+            'certificacion_intera:proceso_documento_descargar',
+            args=[self.proceso.id, general.id],
+        )).status_code, 404)
+
+    def test_archivo_faltante_conserva_404_controlado(self):
+        documento = self.documento('Archivo faltante', modulo='certificacion_intera')
+        documento.archivo.storage.delete(documento.archivo.name)
+        respuesta = self.client.get(reverse(
+            'certificacion_intera:proceso_documento_descargar',
+            args=[self.proceso.id, documento.id],
+        ))
+        self.assertEqual(respuesta.status_code, 404)
+        self.assertContains(respuesta, 'almacenamiento configurado', status_code=404)
+
+    def test_incorporacion_crea_documento_version_y_relacion_sin_permiso_relacionar(self):
+        self.assertFalse(self.usuario.has_perm('portafolio.relacionar_documento'))
+        respuesta = self.client.post(
+            reverse('certificacion_intera:documento_incorporar'),
+            {
+                'nombre': 'Evidencia incorporada', 'descripcion': 'Desde INTERA',
+                'archivo': SimpleUploadedFile('evidencia.pdf', b'pdf'),
+                'alcance': 'proceso', 'proceso': self.proceso.id,
+                'modulo': 'finanzas', 'id_externo': '999',
+            },
+        )
+        self.assertRedirects(
+            respuesta, reverse('certificacion_intera:documentos'),
+        )
+        documento = Documento.objects.get(nombre='Evidencia incorporada')
+        self.assertEqual(documento.ambito, Documento.Ambito.ESPECIFICO)
+        self.assertEqual(documento.origen, Documento.Origen.INCORPORADO)
+        version = VersionDocumento.objects.get(documento=documento)
+        self.assertEqual(version.cargado_por, self.usuario)
+        relacion = RelacionDocumento.objects.get(documento=documento)
+        self.assertEqual(relacion.modulo, 'certificacion_intera')
+        self.assertEqual(relacion.tipo_proceso, 'proceso_certificacion')
+        self.assertEqual(relacion.id_externo, str(self.proceso.id))
+
+    def test_sin_incorporar_o_sin_acceso_intera_no_crea_documento(self):
+        self.quitar_permiso_grupo('incorporar_documento')
+        url = reverse('certificacion_intera:documento_incorporar')
+        self.assertEqual(self.client.post(url, {
+            'nombre': 'No creado', 'archivo': SimpleUploadedFile('no.txt', b'no'),
+        }).status_code, 403)
+        ajeno = User.objects.create_user(username='ajeno-intera', password='x')
+        ajeno.user_permissions.add(Permission.objects.get(
+            content_type__app_label='portafolio', codename='incorporar_documento',
+        ))
+        self.client.force_login(ajeno)
+        self.assertEqual(self.client.post(url, {
+            'nombre': 'Tampoco creado', 'archivo': SimpleUploadedFile('no2.txt', b'no'),
+        }).status_code, 403)
+        self.assertFalse(Documento.objects.filter(nombre__contains='creado').exists())
+
+    def test_navegacion_centro_y_detalle_sin_formulario_documental(self):
+        centro = self.client.get(reverse('certificacion_intera:documentos'))
+        detalle = self.client.get(
+            reverse('certificacion_intera:proceso_detalle', args=[self.proceso.id]),
+        )
+        self.assertContains(centro, 'Centro documental')
+        self.assertContains(centro, 'Generar reporte')
+        self.assertContains(centro, 'Incorporados')
+        self.assertContains(centro, 'Generados')
+        self.assertContains(detalle, 'Ver documentos')
+        self.assertNotContains(detalle, 'Incorporar documento')
+        self.assertNotContains(detalle, 'type="file"')
+
+    def test_usuario_sin_acceso_intera_no_entra_al_centro(self):
+        usuario = User.objects.create_user(username='sin-intera-centro', password='x')
+        self.client.force_login(usuario)
+        self.assertEqual(
+            self.client.get(reverse('certificacion_intera:documentos')).status_code,
+            403,
+        )
+
+    def test_filtros_de_alcance_y_proceso(self):
+        modulo = self.documento(
+            'Filtro modulo', modulo='certificacion_intera', nivel_modulo=True,
+        )
+        proceso = self.documento('Filtro proceso', modulo='certificacion_intera')
+        otro = self.documento(
+            'Filtro otro proceso', modulo='certificacion_intera', proceso=self.otro_proceso,
+        )
+        general = self.documento('Filtro general', ambito=Documento.Ambito.GENERAL)
+        url = reverse('certificacion_intera:documentos')
+        respuesta = self.client.get(url, {'alcance': 'modulo'})
+        self.assertContains(respuesta, modulo.nombre)
+        for documento in (proceso, otro, general):
+            self.assertNotContains(respuesta, documento.nombre)
+        respuesta = self.client.get(url, {'proceso': self.proceso.id})
+        self.assertContains(respuesta, proceso.nombre)
+        self.assertNotContains(respuesta, otro.nombre)
+        self.assertNotContains(respuesta, general.nombre)
+
+    def test_incorporacion_a_nivel_modulo(self):
+        respuesta = self.client.post(
+            reverse('certificacion_intera:documento_incorporar'),
+            {
+                'nombre': 'Manual de INTERA', 'alcance': 'modulo',
+                'archivo': SimpleUploadedFile('manual.txt', b'manual'),
+                'modulo': 'ventas',
+            },
+        )
+        self.assertRedirects(respuesta, reverse('certificacion_intera:documentos'))
+        documento = Documento.objects.get(nombre='Manual de INTERA')
+        relacion = documento.relaciones.get()
+        self.assertEqual(relacion.modulo, 'certificacion_intera')
+        self.assertEqual(relacion.tipo_proceso, '')
+        self.assertEqual(relacion.id_externo, '')
+        self.assertEqual(documento.versiones.count(), 1)
+
+    def test_alcance_o_proceso_manipulado_no_crea_documento(self):
+        url = reverse('certificacion_intera:documento_incorporar')
+        for datos in (
+            {'alcance': 'finanzas'},
+            {'alcance': 'proceso', 'proceso': 999999},
+            {'alcance': 'proceso', 'proceso': ''},
+        ):
+            respuesta = self.client.post(url, {
+                'nombre': 'Manipulado',
+                'archivo': SimpleUploadedFile('manipulado.txt', b'x'),
+                'modulo': 'ventas',
+                **datos,
+            })
+            self.assertEqual(respuesta.status_code, 200)
+        self.assertFalse(Documento.objects.filter(nombre='Manipulado').exists())
+
+    def test_descarga_desde_centro_respeta_alcance_y_permiso(self):
+        permitidos = (
+            self.documento('Centro modulo', modulo='certificacion_intera', nivel_modulo=True),
+            self.documento('Centro proceso', modulo='certificacion_intera'),
+            self.documento('Centro general', ambito=Documento.Ambito.GENERAL),
+        )
+        for documento in permitidos:
+            respuesta = self.client.get(reverse(
+                'certificacion_intera:documento_descargar', args=[documento.id],
+            ))
+            self.assertEqual(respuesta.status_code, 200)
+            respuesta.close()
+        finanzas = self.documento('Centro finanzas', modulo='finanzas')
+        self.assertEqual(self.client.get(reverse(
+            'certificacion_intera:documento_descargar', args=[finanzas.id],
+        )).status_code, 404)
+
+    def test_incorporacion_es_atomica_si_falla_relacion(self):
+        archivo = SimpleUploadedFile('rollback.txt', b'rollback')
+        with patch(
+            'apps.portafolio.services_documentales._crear_relacion_inicial_contextual',
+            side_effect=RuntimeError('fallo controlado'),
+        ), self.assertRaises(RuntimeError):
+            incorporar_documento_contextual(
+                self.usuario, 'certificacion_intera', 'proceso_certificacion',
+                self.proceso.id, nombre='Rollback', archivo=archivo,
+            )
+        self.assertFalse(Documento.objects.filter(nombre='Rollback').exists())
+        self.assertFalse(VersionDocumento.objects.filter(documento__nombre='Rollback').exists())
+        self.assertFalse(RelacionDocumento.objects.filter(documento__nombre='Rollback').exists())
+        self.assertFalse(any(
+            'rollback' in nombre
+            for nombre in default_storage.listdir('portafolio/documentos')[1]
+        ))
+
+    def test_servicio_es_reutilizable_para_otro_modulo(self):
+        ventas = self.documento('Contrato ventas reusable', modulo='ventas')
+        visibles = obtener_documentos_contextuales(
+            self.usuario, 'ventas', 'proceso_certificacion', self.proceso.id,
+        )
+        self.assertIn(ventas, visibles)
+
+    def test_certificacion_usa_componente_pero_no_accede_portafolio(self):
+        respuesta = self.client.get(
+            reverse('certificacion_intera:documentos'),
+        )
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'Documentos')
+        self.assertEqual(self.client.get(reverse('portafolio:dashboard')).status_code, 403)

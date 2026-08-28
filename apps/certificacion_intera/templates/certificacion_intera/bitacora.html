@@ -5,42 +5,5 @@
 {% endblock %}
 
 {% block contenido %}
-    <section class="intera-card">
-        <div class="intera-card-head">
-            <div>
-                <h2>
-                    {{ proceso.nombre }}
-                </h2>
-
-                <p>
-                    Eventos en orden cronológico.
-                </p>
-            </div>
-        </div>
-
-        <div class="intera-list">
-            {% for evento in eventos %}
-                <div class="intera-list-row">
-                    <span>
-                        <b>
-                            {{ evento.evento }}
-                        </b>
-
-                        <small>
-                            {{ evento.descripcion|default:'Sin detalle' }} ·
-                            {{ evento.usuario|default:'Sistema' }}
-                        </small>
-                    </span>
-
-                    <time>
-                        {{ evento.creado_en|date:'d/m/Y H:i' }}
-                    </time>
-                </div>
-            {% empty %}
-                <div class="intera-empty">
-                    Aún no hay eventos registrados.
-                </div>
-            {% endfor %}
-        </div>
-    </section>
+    {% include 'certificacion_intera/_bitacora_proceso.html' %}
 {% endblock %}

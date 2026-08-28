@@ -1,0 +1,107 @@
+{% extends 'certificacion_intera/_base.html' %}
+
+{% block titulo %}
+    Resultados de evaluación
+{% endblock %}
+
+{% block contenido %}
+    <div class="intera-stack">
+        <p>
+            <a href="{% url 'certificacion_intera:participante_detalle' participante.id %}">
+                ← Volver al participante
+            </a>
+        </p>
+
+        <section class="intera-card intera-detail-head">
+            <div>
+                <div class="intera-header-eyebrow">
+                    {{ participante.proceso.escuela.nombre }} ·
+                    {{ participante.proceso.nombre }}
+                </div>
+
+                <h1>Resultados de evaluación</h1>
+
+                <p>
+                    {{ participante.nombre }} ·
+                    Alumno: {{ participante.numero_alumno }}
+                </p>
+            </div>
+
+            <div class="intera-results-count">
+                <strong>{{ respondidas }}/{{ total_instrumentos }}</strong>
+                <span>instrumentos respondidos</span>
+            </div>
+        </section>
+
+        <div class="intera-consolidated-results">
+            {% for presentacion in presentaciones %}
+                <section class="intera-card intera-result-summary-card">
+                    <div class="intera-result-summary-head">
+                        <div>
+                            <h2>{{ presentacion.instrumento.nombre }}</h2>
+                            <span>{{ presentacion.estado_display }}</span>
+                        </div>
+
+                        {% if presentacion.aplicacion and presentacion.respondida %}
+                            <a href="{% url 'certificacion_intera:resultado' presentacion.aplicacion.id %}">
+                                Ver detalle →
+                            </a>
+                        {% endif %}
+                    </div>
+
+                    <div class="intera-result-summary-body">
+                        {% if not presentacion.aplicacion or presentacion.estado == 'pendiente' %}
+                            <p class="intera-muted">
+                                Este instrumento está pendiente de respuesta.
+                            </p>
+                        {% elif not presentacion.respondida %}
+                            <p class="intera-muted">
+                                Esta aplicación se encuentra {{ presentacion.estado_display|lower }} y no tiene un resultado disponible.
+                            </p>
+
+                        {% elif presentacion.resultado_disponible %}
+                            <p class="intera-result-score">
+                                <b>Puntaje:</b>
+                                {{ presentacion.aplicacion.puntaje_total }}
+                            </p>
+
+                            <p>{{ presentacion.aplicacion.interpretacion }}</p>
+
+                            {% if presentacion.detalle_presentacion %}
+                                <div class="intera-result-grid">
+                                    {% for item in presentacion.detalle_presentacion %}
+                                        <div class="intera-result-item">
+                                            <b>{{ item.nombre }}</b>
+                                            <span>{{ item.valor }}</span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                            {% if presentacion.revision_resultado.requiere_revision_profesional %}
+                                <p class="intera-message">
+                                    {{ presentacion.revision_resultado.advertencia_larga }}
+                                </p>
+                            {% endif %}
+
+                            {% if presentacion.advertencia_prioritaria %}
+                                <p class="intera-message intera-message-alert" role="alert">
+                                    {{ presentacion.advertencia_prioritaria }}
+                                </p>
+                            {% endif %}
+
+                        {% else %}
+                            <p class="intera-muted">
+                                {{ presentacion.mensaje_resultado_no_disponible }}
+                            </p>
+                        {% endif %}
+                    </div>
+                </section>
+            {% empty %}
+                <section class="intera-card intera-empty">
+                    No hay instrumentos configurados para este participante.
+                </section>
+            {% endfor %}
+        </div>
+    </div>
+{% endblock %}

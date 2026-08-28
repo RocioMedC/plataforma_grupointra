@@ -5,22 +5,96 @@
 {% endblock %}
 
 {% block contenido %}
-    <div class="intera-stack">
-        <section class="intera-card intera-card-pad">
-            <div class="intera-card-head">
+    <div class="intera-stack intera-process-detail">
+        <nav class="intera-tabs intera-process-tabs" aria-label="Secciones del proceso">
+            <a class="{% if tab == 'resumen' %}active{% endif %}" href="?tab=resumen" {% if tab == 'resumen' %}aria-current="page"{% endif %}>Resumen</a>
+            <a class="{% if tab == 'participantes' %}active{% endif %}" href="?tab=participantes" {% if tab == 'participantes' %}aria-current="page"{% endif %}>Participantes</a>
+            <a class="{% if tab == 'bateria' %}active{% endif %}" href="?tab=bateria" {% if tab == 'bateria' %}aria-current="page"{% endif %}>Batería y aplicación</a>
+            <a class="{% if tab == 'entrevistas' %}active{% endif %}" href="?tab=entrevistas" {% if tab == 'entrevistas' %}aria-current="page"{% endif %}>Entrevistas</a>
+            <a class="{% if tab == 'resultados' %}active{% endif %}" href="?tab=resultados" {% if tab == 'resultados' %}aria-current="page"{% endif %}>Resultados</a>
+            <a class="{% if tab == 'seguimiento' %}active{% endif %}" href="?tab=seguimiento" {% if tab == 'seguimiento' %}aria-current="page"{% endif %}>Seguimiento</a>
+            <a class="{% if tab == 'bitacora' %}active{% endif %}" href="?tab=bitacora" {% if tab == 'bitacora' %}aria-current="page"{% endif %}>Bitácora</a>
+        </nav>
+
+        <section class="intera-card intera-process-hero">
+            <div class="intera-process-hero-main">
                 <div>
                     <h1>
-                        {{ proceso.nombre }}
+                        Proceso de certificación
                     </h1>
 
-                    <p>
-                        {{ proceso.escuela.nombre }} ·
-                        {% if proceso_cerrado %}Finalizado{% else %}{{ proceso.get_estado_display }}{% endif %} ·
-                        Inicio {{ proceso.fecha_inicio|date:'d/m/Y' }}
+                    <p class="intera-process-name">
+                        {{ proceso.nombre }}
                     </p>
                 </div>
 
+                <div class="intera-process-actions">
+                                        {% if not proceso_cerrado %}
+                        <a class="intera-btn intera-btn-danger" 
+                        href="{% url 'certificacion_intera:proceso_cerrar' proceso.id %}">
+                            Cerrar proceso
+                        </a>
+                    {% endif %}
+                </div>
             </div>
+
+           <div class="intera-process-meta">
+    <div>
+        <span>
+            Escuela
+        </span>
+
+        <strong>
+            {{ proceso.escuela.nombre }}
+        </strong>
+    </div>
+
+    <div>
+        <span>
+            Estado
+        </span>
+
+        <strong>
+            {% if proceso_cerrado %}
+                Finalizado
+            {% else %}
+                {{ proceso.get_estado_display }}
+            {% endif %}
+        </strong>
+    </div>
+
+    <div>
+        <span>
+            Ciclo escolar
+        </span>
+
+        <strong>
+            {{ proceso.ciclo_escolar|default:'No especificado' }}
+        </strong>
+    </div>
+
+    <div>
+        <span>
+            Fecha de inicio
+        </span>
+
+        <strong>
+            {{ proceso.fecha_inicio|date:'d/m/Y' }}
+        </strong>
+    </div>
+
+    {% if proceso_cerrado %}
+        <div>
+            <span>
+                Fecha de cierre
+            </span>
+
+            <strong>
+                {{ proceso.fecha_cierre|date:'d/m/Y'|default:'No registrada' }}
+            </strong>
+        </div>
+    {% endif %}
+</div>
 
             {% if proceso_cerrado %}
                 <div class="intera-message">
@@ -29,75 +103,6 @@
                 </div>
             {% endif %}
 
-            <nav
-                class="intera-tabs"
-                aria-label="Secciones del proceso"
-            >
-                <a
-                    class="{% if tab == 'resumen' %}active{% endif %}"
-                    href="?tab=resumen"
-                    {% if tab == 'resumen' %}aria-current="page"{% endif %}
-                >
-                    Resumen
-                </a>
-
-                <a
-                    class="{% if tab == 'participantes' %}active{% endif %}"
-                    href="?tab=participantes"
-                    {% if tab == 'participantes' %}aria-current="page"{% endif %}
-                >
-                    Participantes
-                </a>
-
-                <a
-                    class="{% if tab == 'bateria' %}active{% endif %}"
-                    href="?tab=bateria"
-                    {% if tab == 'bateria' %}aria-current="page"{% endif %}
-                >
-                    Batería y aplicación
-                </a>
-
-                <a
-                    class="{% if tab == 'entrevistas' %}active{% endif %}"
-                    href="?tab=entrevistas"
-                    {% if tab == 'entrevistas' %}aria-current="page"{% endif %}
-                >
-                    Entrevistas
-                </a>
-
-                <a
-                    class="{% if tab == 'seguimiento' %}active{% endif %}"
-                    href="?tab=seguimiento"
-                    {% if tab == 'seguimiento' %}aria-current="page"{% endif %}
-                >
-                    Seguimiento
-                </a>
-
-                <a
-                    class="{% if tab == 'configuracion' %}active{% endif %}"
-                    href="?tab=configuracion"
-                    {% if tab == 'configuracion' %}aria-current="page"{% endif %}
-                >
-                    Configuración
-                </a>
-
-                <a
-                    class="{% if tab == 'bitacora' %}active{% endif %}"
-                    href="?tab=bitacora"
-                    {% if tab == 'bitacora' %}aria-current="page"{% endif %}
-                >
-                    Bitácora
-                </a>
-
-                {% if not proceso_cerrado %}
-                    <a
-                        class="intera-tab-action"
-                        href="{% url 'certificacion_intera:proceso_cerrar' proceso.id %}"
-                    >
-                        Cerrar proceso
-                    </a>
-                {% endif %}
-            </nav>
         </section>
 
         {% if tab == 'bateria' %}
@@ -245,7 +250,7 @@
                         <a
                             href="{% url 'certificacion_intera:configuracion' proceso.id %}"
                         >
-                            Configurar batería →
+                            Configurar batería 
                         </a>
                     {% endif %}
                 </div>
@@ -283,39 +288,100 @@
             </section>
 
         {% elif tab == 'participantes' %}
-            <section class="intera-card">
-                <div class="intera-card-head">
-                    <h2>
-                        Participantes
-                    </h2>
-                </div>
+    <section class="intera-card">
 
-                {% for item in participantes_workflow %}
-                    <a
-                        class="intera-list-row"
-                        href="{% url 'certificacion_intera:participante_detalle' item.participante.id %}"
+        <div class="intera-card-head intera-participantes-header">
+            <h2>
+                Participantes
+            </h2>
+
+            <form method="get" class="intera-participantes-filtros">
+                <input type="hidden" name="tab" value="participantes">
+
+                <input
+                    type="search"
+                    name="q"
+                    value="{{ request.GET.q }}"
+                    placeholder="Buscar participante..."
+                    class="intera-filter-input"
+                >
+
+                <select
+                    name="estado"
+                    class="intera-filter-select"
+                    onchange="this.form.submit()"
+                >
+                    <option value="">Todos</option>
+
+                    <option
+                        value="pendiente"
+                        {% if request.GET.estado == 'pendiente' %}selected{% endif %}
                     >
-                        <span>
-                            <b>
-                                {{ item.participante.nombre }}
-                            </b>
+                        Pendientes
+                    </option>
 
-                            <small>
-                                {{ item.respondidos }}/{{ item.total }}
-                                aplicaciones · {{ item.pendiente }}
-                            </small>
-                        </span>
+                    <option
+                        value="completo"
+                        {% if request.GET.estado == 'completo' %}selected{% endif %}
+                    >
+                        Completados
+                    </option>
+                </select>
 
-                        <time>
-                            Ver participante →
-                        </time>
-                    </a>
-                {% empty %}
-                    <div class="intera-empty">
-                        No hay participantes.
-                    </div>
-                {% endfor %}
-            </section>
+                <button
+                    type="submit"
+                    class="intera-btn intera-btn-secondary"
+                >
+                    Buscar
+                </button>
+            </form>
+        </div>
+
+            {% for item in participantes_workflow %}
+                <div class="intera-list-row intera-participante-row">
+                <span>
+                      <b>
+                   {{ item.participante.nombre }}
+                         </b>
+
+                  <small>
+                     {{ item.respondidos }}/{{ item.total }}
+                     aplicaciones · {{ item.pendiente }}
+                  </small>
+                </span>
+
+        <div class="intera-participante-actions">
+            <a
+                class="intera-list-action"
+                href="{% url 'certificacion_intera:participante_detalle' item.participante.id %}"
+            >
+                Ver participante →
+            </a>
+
+            {% if perms.certificacion_intera.delete_participante %}
+                <form
+                    method="post"
+                    action="{% url 'certificacion_intera:participante_eliminar' item.participante.id %}"
+                    onsubmit="return confirm('¿Seguro que deseas eliminar a {{ item.participante.nombre|escapejs }}? Esta acción eliminará también su información relacionada.');"
+                >
+                    {% csrf_token %}
+
+                    <button
+                        type="submit"
+                        class="intera-delete-link"
+                    >
+                        Eliminar
+                    </button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+
+{% empty %}
+    <div class="intera-empty">
+        No hay participantes.
+    </div>
+{% endfor %}
 
         {% elif tab == 'entrevistas' %}
             <section class="intera-card">
@@ -342,13 +408,32 @@
                         </span>
 
                         <time>
-                            Ver participante →
+                            Ver participante 
                         </time>
                     </a>
                 {% empty %}
                     <div class="intera-empty">
                         No hay entrevistas registradas.
                     </div>
+                {% endfor %}
+            </section>
+
+        {% elif tab == 'resultados' %}
+            <section class="intera-card">
+                <div class="intera-card-head">
+                    <h2>Resultados disponibles</h2>
+                </div>
+
+                {% for aplicacion in resultados %}
+                    <a class="intera-list-row" href="{% url 'certificacion_intera:resultado' aplicacion.id %}">
+                        <span>
+                            <b>{{ aplicacion.participante.nombre }}</b>
+                            <small>{{ aplicacion.instrumento.nombre }}</small>
+                        </span>
+                        <time>Consultar resultado →</time>
+                    </a>
+                {% empty %}
+                    <div class="intera-empty">Aún no hay resultados disponibles.</div>
                 {% endfor %}
             </section>
 
@@ -376,7 +461,7 @@
                         </span>
 
                         <time>
-                            Ver seguimiento →
+                            Ver seguimiento 
                         </time>
                     </a>
                 {% empty %}
@@ -403,48 +488,61 @@
             </section>
 
         {% elif tab == 'bitacora' %}
-            <section class="intera-card intera-card-pad">
-                <h2>
-                    Bitácora
-                </h2>
-
-                <a
-                    class="intera-btn"
-                    href="{% url 'certificacion_intera:proceso_bitacora' proceso.id %}"
-                >
-                    Consultar bitácora
-                </a>
-            </section>
+            {% include 'certificacion_intera/_bitacora_proceso.html' with eventos=eventos_bitacora %}
 
         {% elif tab == 'resumen' %}
-            <div class="intera-kpi-grid">
-                <div class="intera-kpi">
-                    Participantes
-
-                    <strong>
-                        {{ total_participantes }}
-                    </strong>
+            <section class="intera-card intera-public-access-card">
+                <div class="intera-public-access-copy">
+                    <span class="intera-feature-icon" aria-hidden="true">◎</span>
+                    <div>
+                        <h2>Acceso público</h2>
+                        <p>Comparte este enlace o código QR para que los participantes registren su aplicación.</p>
+                    </div>
                 </div>
 
-                <div class="intera-kpi">
-                    Baterías completas
+                {% if aplicacion_publica_general %}
+                    <div class="intera-public-access-tools">
+                        <input class="intera-public-link" readonly aria-label="Enlace público de la aplicación" value="{{ url_publica_general }}">
+                        <button class="intera-btn intera-btn-secondary" type="button" data-copy-general data-copy-value="{{ url_publica_general }}">Copiar enlace</button>
+                        <a class="intera-qr-preview" href="{% url 'certificacion_intera:aplicacion_publica_proceso_qr' proceso.id %}" target="_blank" rel="noopener">
+                            <img src="{% url 'certificacion_intera:aplicacion_publica_proceso_qr' proceso.id %}" alt="Código QR del acceso público" width="58" height="58">
+                        </a>
+                        <a class="intera-btn" href="{{ aplicacion_publica_general.url_publica }}" target="_blank" rel="noopener">Abrir aplicación</a>
+                    </div>
+                    <span class="aplicacion-publica__copy-status" role="status" aria-live="polite" data-copy-status></span>
+                {% else %}
+                    <div class="intera-public-access-tools">
+                        <p class="intera-muted">Aún no se ha generado el enlace público.</p>
+                        {% if not proceso_cerrado %}
+                            <form method="post" action="{% url 'certificacion_intera:aplicacion_publica_proceso_generar' proceso.id %}">
+                                {% csrf_token %}
+                                <button class="intera-btn" type="submit">Generar enlace</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </section>
 
-                    <strong>
-                        {{ baterias_completas }}
-                    </strong>
+            <div class="intera-kpi-grid intera-process-kpis">
+                <a class="intera-kpi intera-kpi--accent" href="?tab=participantes"><span class="intera-kpi-label">Participantes registrados</span><strong>{{ total_participantes }}</strong><small>Ver participantes →</small></a>
+                <a class="intera-kpi intera-kpi--success" href="?tab=bateria"><span class="intera-kpi-label">Baterías completas</span><strong>{{ baterias_completas }}</strong><small>{{ progreso_bateria }}% completado · Ver baterías →</small></a>
+                <a class="intera-kpi intera-kpi--warning" href="?tab=entrevistas"><span class="intera-kpi-label">Entrevistas pendientes</span><strong>{{ entrevistas_pendientes }}</strong><small>Ver entrevistas →</small></a>
+                <a class="intera-kpi intera-kpi--info" href="?tab=resultados"><span class="intera-kpi-label">Resultados disponibles</span><strong>{{ indicadores.respondidos }}</strong><small>Ver resultados →</small></a>
+            </div>
 
-                    <small>
-                        {{ progreso_bateria }} %
-                    </small>
-                </div>
+            <div class="intera-process-work-grid">
+                <section class="intera-card intera-process-work-card">
+                    <div class="intera-card-head"><h2>Trabajo pendiente</h2></div>
+                    {% for item in participantes_workflow|slice:':5' %}
+                        <a class="intera-list-row" href="{% url 'certificacion_intera:participante_detalle' item.participante.id %}">
+                            <span><b>{{ item.participante.nombre }}</b><small>{{ item.pendiente }}</small></span>
+                            <time>Revisar →</time>
+                        </a>
+                    {% empty %}
+                        <div class="intera-empty">No hay trabajo pendiente.</div>
+                    {% endfor %}
+                </section>
 
-                <div class="intera-kpi">
-                    Entrevistas pendientes
-
-                    <strong>
-                        {{ entrevistas_pendientes }}
-                    </strong>
-                </div>
             </div>
         {% endif %}
     </div>
