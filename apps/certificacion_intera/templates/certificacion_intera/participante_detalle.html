@@ -5,101 +5,158 @@
 {% endblock %}
 
 {% block contenido %}
-    <div class="intera-stack">
-        <p>
-            <a
-                href="{% url 'certificacion_intera:proceso_detalle' participante.proceso.id %}"
-            >
-                ← Volver al proceso
-            </a>
-        </p>
+    <div class="intera-stack intera-participant-record">
 
-        <section class="intera-card intera-detail-head">
-            <div>
-                <div class="intera-header-eyebrow">
-                    {{ participante.proceso.escuela.nombre }} ·
-                    {{ participante.proceso.nombre }}
+       <div class="intera-record-back-row">
+    
+</div>
+
+        <section class="intera-card intera-participant-hero">
+            <div class="intera-participant-hero-main">
+                <div class="intera-participant-avatar" aria-hidden="true">
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                    >
+                        <circle cx="12" cy="8" r="4"></circle>
+                        <path d="M4.5 21c.7-4.2 3.2-6.5 7.5-6.5s6.8 2.3 7.5 6.5"></path>
+                    </svg>
                 </div>
 
-                <h1>
-                    {{ participante.nombre }}
-                </h1>
+                <div class="intera-participant-identity">
+                    <div class="intera-header-eyebrow">
+                        {{ participante.proceso.escuela.nombre }} ·
+                        {{ participante.proceso.nombre }}
+                    </div>
 
-                <p>
-                    Alumno: {{ participante.numero_alumno }}
-                    {% if participante.grupo %}
-                        · Grupo: {{ participante.grupo }}
-                    {% endif %}
-                </p>
+                    <h1>
+                        {{ participante.nombre }}
+                    </h1>
+
+                    <p>
+                        Alumno: {{ participante.numero_alumno }}
+                        {% if participante.grupo %}
+                            <span aria-hidden="true">·</span>
+                            Grupo: {{ participante.grupo }}
+                        {% endif %}
+                    </p>
+                </div>
             </div>
 
             <a
-                class="intera-btn"
+                class="intera-btn intera-participant-edit"
                 href="{% url 'certificacion_intera:participante_editar' participante.id %}"
             >
                 Editar
             </a>
         </section>
 
-        <section class="intera-card intera-card-pad">
-            <div class="intera-card-head">
-                <div>
+        <section class="intera-card intera-participant-section intera-participant-section--interview">
+            <div class="intera-participant-section-main">
+                <div class="intera-section-icon intera-section-icon--warning" aria-hidden="true">
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                    >
+                        <rect x="4" y="5" width="16" height="15" rx="2"></rect>
+                        <path d="M8 3v4M16 3v4M4 10h16"></path>
+                    </svg>
+                </div>
+
+                <div class="intera-participant-section-content">
                     <h2>
-                        Entrevista 1:1
+                        Entrevista 
                     </h2>
 
                     <p>
                         Registro privado de seguimiento individual.
                     </p>
-                </div>
 
-                <a
-                    class="intera-btn"
-                    href="{% url 'certificacion_intera:entrevista_1a1_acceso' participante.id %}"
-                >
-                    Solicitar acceso
-                </a>
+                    <div class="intera-section-note">
+                        Requiere instrumentos obligatorios contestados y
+                        confirmación de identidad.
+                    </div>
+                </div>
             </div>
 
-            <p class="intera-muted">
-                    Requiere instrumentos obligatorios contestados y confirmación
-                    de identidad.
-            </p>
+            <a
+                class="intera-btn"
+                href="{% url 'certificacion_intera:entrevista_1a1_acceso' participante.id %}"
+            >
+                Solicitar acceso
+            </a>
         </section>
 
-        <section class="intera-card">
-            <div class="intera-card-head">
-                <h2>
-                    Aplicaciones y resultados
-                </h2>
+        <section class="intera-card intera-participant-results">
+            <div class="intera-card-head intera-participant-card-head">
+                <div class="intera-participant-title-with-icon">
+                    <div class="intera-section-icon intera-section-icon--info" aria-hidden="true">
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                        >
+                            <path d="M5 20V10"></path>
+                            <path d="M12 20V4"></path>
+                            <path d="M19 20v-7"></path>
+                        </svg>
+                    </div>
 
-                <a
-                    href="{% url 'certificacion_intera:aplicacion_crear' participante.id %}"
-                >
-                    Generar aplicación →
-                </a>
+                    <h2>
+                        Aplicaciones y resultados
+                    </h2>
+                </div>
+
+                {% if aplicaciones %}
+                    <a
+                        class="intera-text-link"
+                        href="{% url 'certificacion_intera:resultados_participante' participante.id %}"
+                    >
+                        Ver todos los resultados 
+                    </a>
+                {% endif %}
             </div>
 
-            <div class="intera-list">
+            <div class="intera-list intera-application-results-list">
                 {% for aplicacion in aplicaciones %}
-                    <div class="intera-list-row">
-                        <span>
-                            <b>
-                                {{ aplicacion.instrumento.nombre }}
-                            </b>
+                    <div class="intera-application-result-row">
+                        <b class="intera-application-result-name">
+                            {{ aplicacion.instrumento.nombre }}
+                        </b>
 
-                            <small>
-                                {{ aplicacion.get_estado_display }}
-                            </small>
+                        <span
+                            class="
+                                intera-application-result-status
+                                {% if aplicacion.estado == 'respondida' %}
+                                    intera-status-complete
+                                {% endif %}
+                            "
+                        >
+                            {{ aplicacion.get_estado_display }}
                         </span>
 
-                        {% if aplicacion.estado == 'respondida' %}
-                            <a
-                                href="{% url 'certificacion_intera:resultado' aplicacion.id %}"
-                            >
-                                Resultado →
-                            </a>
-                        {% endif %}
+                        <span class="intera-application-result-action">
+                            {% if aplicacion.estado == 'respondida' %}
+                                <a
+                                    class="intera-text-link"
+                                    href="{% url 'certificacion_intera:resultado' aplicacion.id %}"
+                                >
+                                    Resultado 
+                                </a>
+                            {% else %}
+                                <span
+                                    class="intera-muted"
+                                    aria-label="Sin resultado disponible"
+                                >
+                                    —
+                                </span>
+                            {% endif %}
+                        </span>
                     </div>
                 {% empty %}
                     <div class="intera-empty">
@@ -109,73 +166,123 @@
             </div>
         </section>
 
-        <div class="intera-two-col">
-            <section class="intera-card intera-card-pad">
-                <h2>
-                    Consejerías
-                </h2>
+        <div class="intera-two-col intera-participant-followup-grid">
 
-                <p>
+            <section class="intera-card intera-participant-followup-card">
+                <div class="intera-participant-title-with-icon">
+                    <div class="intera-section-icon intera-section-icon--accent" aria-hidden="true">
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                        >
+                            <circle cx="9" cy="8" r="3"></circle>
+                            <circle cx="17" cy="9" r="2.5"></circle>
+                            <path d="M3.5 20c.5-3.7 2.5-5.7 5.5-5.7s5 2 5.5 5.7"></path>
+                            <path d="M14.5 15.2c3.3-.4 5.4 1.2 6 4.8"></path>
+                        </svg>
+                    </div>
+
+                    <h2>
+                        Consejerías
+                    </h2>
+                </div>
+
+                <div class="intera-followup-content">
+                    {% for c in consejerias %}
+                        <div class="intera-followup-row">
+                            <span>
+                                {{ c.fecha|date:'d/m/Y' }}
+                            </span>
+
+                            <span class="intera-status-badge">
+                                {{ c.get_estado_display }}
+                            </span>
+                        </div>
+                    {% empty %}
+                        <p class="intera-muted intera-empty-state">
+                            Aún no hay sesiones registradas.
+                        </p>
+                    {% endfor %}
+                </div>
+
+                <div class="intera-followup-actions">
                     <a
+                        class="intera-small-action"
                         href="{% url 'certificacion_intera:consejeria_crear' participante.id %}"
                     >
                         Registrar sesión
                     </a>
-                    (máximo tres).
-                </p>
 
-                {% for c in consejerias %}
-                    <p>
-                        {{ c.fecha|date:'d/m/Y' }} ·
-                        {{ c.get_estado_display }}
+                    <p class="intera-helper-text">
+                        Máximo 3 sesiones por participante.
                     </p>
-                {% empty %}
-                    <p class="intera-muted">
-                        Aún no hay sesiones.
-                    </p>
-                {% endfor %}
+                </div>
             </section>
 
-            <section class="intera-card intera-card-pad">
-                <h2>
-                    Canalizaciones
-                </h2>
-
-                {% for c in canalizaciones %}
-                    <p>
-                        <b>
-                            {{ c.get_tipo_display }}
-                        </b>
-                        · {{ c.get_estado_display }}
-                    </p>
-
-                    <p>
-                        {{ c.fecha|date:'d/m/Y' }} ·
-                        {{ c.get_prioridad_display }} ·
-                        {{ c.destino }}
-                    </p>
-
-                    <p>
-                        <a
-                            href="{% url 'certificacion_intera:canalizacion_detalle' c.id %}"
+            <section class="intera-card intera-participant-followup-card">
+                <div class="intera-participant-title-with-icon">
+                    <div class="intera-section-icon intera-section-icon--success" aria-hidden="true">
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.8"
                         >
-                            Consultar canalización →
-                        </a>
-                    </p>
-                {% empty %}
-                    <p>
-                        Sin canalizaciones activas.
-                    </p>
+                            <path d="M5 19l5-6 4 3 5-8"></path>
+                            <path d="M15 8h4v4"></path>
+                        </svg>
+                    </div>
 
-                    <p>
-                        <a
-                            href="{% url 'certificacion_intera:canalizacion_crear' participante.id %}"
-                        >
-                            Registrar canalización
-                        </a>
-                    </p>
-                {% endfor %}
+                    <h2>
+                        Canalizaciones
+                    </h2>
+                </div>
+
+                <div class="intera-followup-content">
+                    {% for c in canalizaciones %}
+                        <div class="intera-referral-item">
+                            <div class="intera-referral-head">
+                                <b>
+                                    {{ c.get_tipo_display }}
+                                </b>
+
+                                <span class="intera-status-badge">
+                                    {{ c.get_estado_display }}
+                                </span>
+                            </div>
+
+                            <p>
+                                {{ c.fecha|date:'d/m/Y' }} ·
+                                {{ c.get_prioridad_display }} ·
+                                {{ c.destino }}
+                            </p>
+
+                            <a
+                                class="intera-text-link"
+                                href="{% url 'certificacion_intera:canalizacion_detalle' c.id %}"
+                            >
+                                Consultar canalización 
+                            </a>
+                        </div>
+                    {% empty %}
+                        <p class="intera-muted intera-empty-state">
+                            Sin canalizaciones activas.
+                        </p>
+
+                        <div class="intera-followup-actions">
+                            <a
+                                class="intera-small-action"
+                                href="{% url 'certificacion_intera:canalizacion_crear' participante.id %}"
+                            >
+                                Registrar canalización
+                            </a>
+                        </div>
+                    {% endfor %}
+                </div>
             </section>
+
         </div>
     </div>
 {% endblock %}

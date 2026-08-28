@@ -1,0 +1,41 @@
+<section class="intera-card intera-process-log">
+    <div class="intera-card-head">
+        <div>
+            <h2>Bitácora</h2>
+            <p>Historial de actividades del proceso.</p>
+        </div>
+    </div>
+
+    <div class="intera-table-wrap">
+        <table class="intera-table intera-log-table">
+            <thead>
+                <tr>
+                    <th>Fecha y hora</th>
+                    <th>Evento</th>
+                    <th>Descripción</th>
+                    <th>Usuario</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for evento in eventos %}
+                    <tr>
+                        <td>
+                            <time datetime="{{ evento.creado_en|date:'c' }}">
+                                {{ evento.creado_en|date:'d/m/Y H:i' }}
+                            </time>
+                        </td>
+                        <td><strong>{{ evento.evento }}</strong></td>
+                        <td>{{ evento.descripcion|default:'Sin detalle' }}</td>
+                        <td>{{ evento.usuario|default:'Sistema' }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td class="intera-empty" colspan="4">
+                            Aún no hay eventos registrados.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>

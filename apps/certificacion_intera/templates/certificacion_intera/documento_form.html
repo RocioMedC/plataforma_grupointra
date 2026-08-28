@@ -1,0 +1,18 @@
+{% extends 'certificacion_intera/_base.html' %}
+
+{% block titulo %}Incorporar documento{% endblock %}
+
+{% block contenido %}
+<section class="intera-card intera-card-pad">
+    <h1>Incorporar documento</h1>
+    <p>El archivo quedará administrado por Portafolio y disponible en el alcance seleccionado.</p>
+    <form method="post" enctype="multipart/form-data" class="intera-stack">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <div>
+            <button class="intera-btn" type="submit">Incorporar documento</button>
+            <a class="intera-btn intera-btn-secondary" href="{% url 'certificacion_intera:documentos' %}">Cancelar</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

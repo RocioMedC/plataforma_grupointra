@@ -8,7 +8,7 @@ from qrcode.image.svg import SvgPathImage
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.core.paginator import Paginator
@@ -52,6 +52,7 @@ from .instrumentos import (
 )
 from apps.portafolio.models import (
     CalculadoraInstrumento,
+    Documento,
     Instrumento,
     PreguntaInstrumento,
 )
@@ -64,6 +65,22 @@ from apps.portafolio.services_calificacion import (
     obtener_revision_calculadora,
     obtener_revision_resultado,
     validar_variante_por_edad,
+)
+from apps.portafolio.permisos_documentales import puede_realizar_operacion_documental
+from apps.portafolio.services_archivos import (
+    ArchivoDocumentoNoDisponible,
+    construir_respuesta_descarga,
+)
+from apps.portafolio.services_documentales import (
+    incorporar_documento_contextual,
+    obtener_documentos_centro_modulo,
+)
+from .documentos import (
+    DocumentoCentroInteraForm,
+    MODULO_DOCUMENTAL,
+    TIPO_PROCESO_DOCUMENTAL,
+    contexto_documental_proceso,
+    presentar_documentos_centro,
 )
 from .services import (
     cerrar_proceso,
@@ -344,6 +361,8 @@ def _orden_bateria_post(request, instrumentos):
 def dashboard_view(request):
     procesos = ProcesoCertificacion.objects.select_related('escuela').all()
     activos = procesos.exclude(estado=ProcesoCertificacion.Estado.CERRADO)
+    cerrados = procesos.filter(estado=ProcesoCertificacion.Estado.CERRADO)
+
     aplicaciones = AplicacionInstrumento.objects.exclude(
         instrumento__clave__in=CLAVES_INSTRUMENTOS_DE_FLUJO_INTERNO,
     )
@@ -388,6 +407,7 @@ def dashboard_view(request):
             'total_escuelas': Escuela.objects.count(),
             'participantes_registrados': Participante.objects.count(),
             'procesos_activos': activos.count(),
+            'procesos_cerrados': cerrados.count(),
             'baterias_completadas': completadas,
             'entrevistas_pendientes': pendientes_entrevista,
             'seguimientos_pendientes': Consejeria.objects.filter(estado=Consejeria.Estado.PENDIENTE).count(),
@@ -461,6 +481,8 @@ def escuelas_view(request):
 
 def procesos_view(request):
     q = request.GET.get('q', '').strip()
+    estado_operativo = request.GET.get('operativo', '').strip()
+    etapa = request.GET.get('etapa', request.GET.get('estado', '')).strip()
     procesos = ProcesoCertificacion.objects.select_related('escuela').all()
     if q:
         procesos = procesos.filter(
@@ -468,10 +490,29 @@ def procesos_view(request):
         )
     if request.GET.get('escuela'):
         procesos = procesos.filter(escuela_id=request.GET['escuela'])
-    if request.GET.get('estado'):
-        procesos = procesos.filter(estado=request.GET['estado'])
+    if estado_operativo == 'activo':
+        procesos = procesos.exclude(estado=ProcesoCertificacion.Estado.CERRADO)
+    elif estado_operativo == 'cerrado':
+        procesos = procesos.filter(estado=ProcesoCertificacion.Estado.CERRADO)
+    estados_validos = {valor for valor, _etiqueta in ProcesoCertificacion.Estado.choices}
+    if etapa in estados_validos:
+        procesos = procesos.filter(estado=etapa)
     if request.GET.get('periodo'):
         procesos = procesos.filter(ciclo_escolar__icontains=request.GET['periodo'])
+
+    elementos = _pagina(request, procesos.order_by('-fecha_inicio'))
+    for proceso in elementos:
+        proceso.estado_operativo_presentacion = (
+            'Cerrado' if proceso.estado == ProcesoCertificacion.Estado.CERRADO else 'Activo'
+        )
+        proceso.estado_operativo_clase = (
+            'closed' if proceso.estado == ProcesoCertificacion.Estado.CERRADO else 'active'
+        )
+        proceso.etapa_presentacion = (
+            'Finalizado'
+            if proceso.estado == ProcesoCertificacion.Estado.CERRADO
+            else proceso.get_estado_display()
+        )
     return render(
         request,
         'certificacion_intera/listado.html',
@@ -479,11 +520,16 @@ def procesos_view(request):
             'vista_actual': 'procesos',
             'titulo_listado': 'Procesos de certificación',
             'descripcion_listado': 'Consulta los procesos registrados y entra a su expediente.',
-            'elementos': _pagina(request, procesos.order_by('-fecha_inicio')),
+            'elementos': elementos,
             'tipo_listado': 'procesos',
             'q': q,
             'escuelas_filtro': Escuela.objects.all(),
-            'estados_proceso': ProcesoCertificacion.Estado.choices,
+            'etapas_proceso': [
+                choice for choice in ProcesoCertificacion.Estado.choices
+                if choice[0] != ProcesoCertificacion.Estado.CERRADO
+            ],
+            'estado_operativo': estado_operativo,
+            'etapa_actual': etapa,
             'filtros': request.GET,
         },
     )
@@ -555,6 +601,31 @@ def escuela_eliminar_view(request, escuela_id):
 
 
 def participantes_view(request):
+    q = request.GET.get('q', '').strip()
+    participantes = Participante.objects.select_related('proceso__escuela').all()
+    if q:
+        participantes = participantes.filter(
+            Q(nombre__icontains=q)
+            | Q(numero_alumno__icontains=q)
+            | Q(correo__icontains=q)
+        )
+    if request.GET.get('escuela'):
+        participantes = participantes.filter(proceso__escuela_id=request.GET['escuela'])
+    if request.GET.get('proceso'):
+        participantes = participantes.filter(proceso_id=request.GET['proceso'])
+    estado = request.GET.get('estado', '')
+    if estado == 'respondida':
+        participantes = participantes.filter(
+            aplicaciones__estado=AplicacionInstrumento.Estado.RESPONDIDA,
+        )
+    elif estado == 'pendiente':
+        participantes = participantes.filter(
+            aplicaciones__estado=AplicacionInstrumento.Estado.PENDIENTE,
+        )
+    elif estado == 'resultados':
+        participantes = participantes.filter(
+            aplicaciones__resultado__estado=ResultadoInstrumento.Estado.EVALUADO,
+        )
     return render(
         request,
         'certificacion_intera/listado.html',
@@ -562,8 +633,12 @@ def participantes_view(request):
             'vista_actual': 'participantes',
             'titulo_listado': 'Participantes',
             'descripcion_listado': 'Consulta los participantes de los procesos de certificación.',
-            'elementos': Participante.objects.select_related('proceso__escuela').all(),
+            'elementos': _pagina(request, participantes.distinct()),
             'tipo_listado': 'participantes',
+            'q': q,
+            'escuelas_filtro': Escuela.objects.all(),
+            'procesos_filtro': ProcesoCertificacion.objects.select_related('escuela').all(),
+            'filtros': request.GET,
         },
     )
 
@@ -572,6 +647,30 @@ def participantes_view(request):
 
 
 def entrevistas_view(request):
+    q = request.GET.get('q', '').strip()
+    entrevistas = EntrevistaSeguimiento.objects.select_related(
+        'participante__proceso__escuela',
+    ).all()
+    if q:
+        entrevistas = entrevistas.filter(
+            Q(participante__nombre__icontains=q)
+            | Q(participante__numero_alumno__icontains=q)
+        )
+    if request.GET.get('escuela'):
+        entrevistas = entrevistas.filter(
+            participante__proceso__escuela_id=request.GET['escuela'],
+        )
+    if request.GET.get('proceso'):
+        entrevistas = entrevistas.filter(participante__proceso_id=request.GET['proceso'])
+    if request.GET.get('estado') in EntrevistaSeguimiento.Decision.values:
+        entrevistas = entrevistas.filter(decision=request.GET['estado'])
+    if request.GET.get('fecha'):
+        try:
+            fecha_filtro = date.fromisoformat(request.GET['fecha'])
+        except ValueError:
+            fecha_filtro = None
+        if fecha_filtro:
+            entrevistas = entrevistas.filter(fecha=fecha_filtro)
     return render(
         request,
         'certificacion_intera/listado.html',
@@ -579,10 +678,13 @@ def entrevistas_view(request):
             'vista_actual': 'entrevistas',
             'titulo_listado': 'Entrevistas',
             'descripcion_listado': 'Consulta las entrevistas de seguimiento registradas.',
-            'elementos': EntrevistaSeguimiento.objects.select_related(
-                'participante__proceso__escuela',
-            ).all(),
+            'elementos': _pagina(request, entrevistas.order_by('-fecha', '-id')),
             'tipo_listado': 'entrevistas',
+            'q': q,
+            'escuelas_filtro': Escuela.objects.all(),
+            'procesos_filtro': ProcesoCertificacion.objects.select_related('escuela').all(),
+            'estados_filtro': EntrevistaSeguimiento.Decision.choices,
+            'filtros': request.GET,
         },
     )
 
@@ -591,6 +693,21 @@ def entrevistas_view(request):
 
 
 def seguimiento_view(request):
+    q = request.GET.get('q', '').strip()
+    seguimientos = Consejeria.objects.select_related('participante__proceso__escuela').all()
+    if q:
+        seguimientos = seguimientos.filter(
+            Q(participante__nombre__icontains=q)
+            | Q(participante__numero_alumno__icontains=q)
+        )
+    if request.GET.get('escuela'):
+        seguimientos = seguimientos.filter(
+            participante__proceso__escuela_id=request.GET['escuela'],
+        )
+    if request.GET.get('proceso'):
+        seguimientos = seguimientos.filter(participante__proceso_id=request.GET['proceso'])
+    if request.GET.get('estado') in Consejeria.Estado.values:
+        seguimientos = seguimientos.filter(estado=request.GET['estado'])
     return render(
         request,
         'certificacion_intera/listado.html',
@@ -598,8 +715,13 @@ def seguimiento_view(request):
             'vista_actual': 'seguimiento',
             'titulo_listado': 'Seguimiento',
             'descripcion_listado': 'Consulta las consejerías de los participantes.',
-            'elementos': Consejeria.objects.select_related('participante__proceso__escuela').all(),
+            'elementos': _pagina(request, seguimientos.order_by('-fecha', '-id')),
             'tipo_listado': 'seguimiento',
+            'q': q,
+            'escuelas_filtro': Escuela.objects.all(),
+            'procesos_filtro': ProcesoCertificacion.objects.select_related('escuela').all(),
+            'estados_filtro': Consejeria.Estado.choices,
+            'filtros': request.GET,
         },
     )
 
@@ -729,6 +851,19 @@ def escuela_detalle_view(request, escuela_id):
     }:
         tab = 'resumen'
     procesos = escuela.procesos.prefetch_related('participantes__aplicaciones').all()
+    proceso_vigente = procesos.exclude(
+        estado=ProcesoCertificacion.Estado.CERRADO,
+    ).first()
+    aplicacion_publica_vigente = (
+        AplicacionPublica.objects.filter(proceso=proceso_vigente).first()
+        if proceso_vigente
+        else None
+    )
+    url_publica_vigente = (
+        request.build_absolute_uri(aplicacion_publica_vigente.url_publica)
+        if aplicacion_publica_vigente
+        else ''
+    )
     participantes_registrados = Participante.objects.filter(proceso__escuela=escuela).count()
     procesos_activos = procesos.exclude(estado=ProcesoCertificacion.Estado.CERRADO).count()
     historial = BitacoraProceso.objects.filter(proceso__escuela=escuela).select_related(
@@ -746,6 +881,9 @@ def escuela_detalle_view(request, escuela_id):
             'tab': tab,
             'participantes_registrados': participantes_registrados,
             'procesos_activos': procesos_activos,
+            'proceso_vigente': proceso_vigente,
+            'aplicacion_publica_vigente': aplicacion_publica_vigente,
+            'url_publica_vigente': url_publica_vigente,
             'historial': historial,
             'return_url': _url_retorno_segura(request, reverse('certificacion_intera:escuelas')),
         },
@@ -898,6 +1036,7 @@ def proceso_detalle_view(request, proceso_id):
         'participantes',
         'bateria',
         'entrevistas',
+        'resultados',
         'seguimiento',
         'configuracion',
         'bitacora',
@@ -1004,6 +1143,7 @@ def proceso_detalle_view(request, proceso_id):
         if aplicacion_publica_general
         else ''
     )
+    eventos_bitacora = proceso.bitacora.select_related('usuario')
     return render(
         request,
         'certificacion_intera/proceso_detalle.html',
@@ -1022,6 +1162,7 @@ def proceso_detalle_view(request, proceso_id):
             'tarjetas_instrumento': tarjetas_instrumento,
             'aplicacion_publica_general': aplicacion_publica_general,
             'url_publica_general': url_publica_general,
+            'eventos_bitacora': eventos_bitacora,
             'aplicaciones': aplicaciones[:12],
             'resultados': respondidas[:12],
             'entrevistas': entrevistas[:12],
@@ -1038,6 +1179,123 @@ def proceso_detalle_view(request, proceso_id):
             },
         },
     )
+
+
+@acceso_certificacion_intera_requerido
+def proceso_documento_incorporar_view(request, proceso_id):
+    proceso = _proceso(proceso_id)
+    messages.info(request, 'La incorporación documental se realiza desde Documentos.')
+    return redirect(
+        reverse('certificacion_intera:documentos') + f'?proceso={proceso.id}'
+    )
+
+
+@acceso_certificacion_intera_requerido
+def proceso_documento_descargar_view(request, proceso_id, documento_id):
+    proceso = _proceso(proceso_id)
+    documento = get_object_or_404(Documento, id=documento_id)
+    contexto = contexto_documental_proceso(proceso)
+    if not puede_realizar_operacion_documental(
+        request.user, 'descargar', documento, **contexto,
+    ):
+        raise Http404
+    try:
+        return construir_respuesta_descarga(documento)
+    except ArchivoDocumentoNoDisponible:
+        return render(
+            request,
+            'portafolio/archivo_no_disponible.html',
+            {'documento': documento},
+            status=404,
+        )
+
+
+@acceso_certificacion_intera_requerido
+def documentos_view(request):
+    procesos = ProcesoCertificacion.objects.select_related('escuela').all()
+    proceso_id = request.GET.get('proceso', '').strip()
+    proceso = procesos.filter(pk=proceso_id).first() if proceso_id.isdigit() else None
+    proceso_invalido = bool(proceso_id and not proceso)
+    alcance = request.GET.get('alcance', 'todos')
+    if alcance not in {'todos', 'modulo', 'procesos', 'generales'}:
+        alcance = 'todos'
+    documentos = obtener_documentos_centro_modulo(
+        request.user,
+        MODULO_DOCUMENTAL,
+        alcance=alcance,
+        tipo_proceso=TIPO_PROCESO_DOCUMENTAL if proceso else '',
+        id_externo=str(proceso.pk) if proceso else '',
+        busqueda=request.GET.get('q', ''),
+        origen=request.GET.get('origen', ''),
+    )
+    if proceso_invalido:
+        documentos = documentos.none()
+    return render(request, 'certificacion_intera/documentos.html', {
+        'vista_actual': 'documentos',
+        'items_documentales': presentar_documentos_centro(documentos, procesos),
+        'procesos_documentales': procesos,
+        'proceso_actual': proceso,
+        'alcance_actual': alcance,
+        'busqueda': request.GET.get('q', '').strip(),
+        'origen_actual': request.GET.get('origen', ''),
+        'puede_consultar': puede_realizar_operacion_documental(request.user, 'consultar'),
+        'puede_descargar': puede_realizar_operacion_documental(request.user, 'descargar'),
+        'puede_incorporar': puede_realizar_operacion_documental(request.user, 'incorporar'),
+        'puede_generar': puede_realizar_operacion_documental(request.user, 'generar'),
+    })
+
+
+@acceso_certificacion_intera_requerido
+def documento_incorporar_view(request):
+    if not puede_realizar_operacion_documental(request.user, 'incorporar'):
+        raise PermissionDenied
+    procesos = ProcesoCertificacion.objects.select_related('escuela').all()
+    formulario = DocumentoCentroInteraForm(
+        request.POST or None, request.FILES or None, procesos=procesos,
+    )
+    if request.method == 'POST' and formulario.is_valid():
+        datos = formulario.cleaned_data.copy()
+        alcance = datos.pop('alcance')
+        proceso = datos.pop('proceso')
+        if alcance == DocumentoCentroInteraForm.ALCANCE_PROCESO:
+            if not proceso_es_editable(proceso):
+                formulario.add_error('proceso', 'El proceso está cerrado y no admite incorporaciones.')
+            else:
+                contexto = contexto_documental_proceso(proceso)
+        else:
+            contexto = {
+                'modulo': MODULO_DOCUMENTAL,
+                'tipo_proceso': '',
+                'id_externo': '',
+            }
+        if not formulario.errors:
+            try:
+                incorporar_documento_contextual(request.user, **contexto, **datos)
+            except Exception:
+                messages.error(request, 'No fue posible registrar el documento.')
+            else:
+                messages.success(request, 'Documento incorporado correctamente.')
+                return redirect('certificacion_intera:documentos')
+    return render(request, 'certificacion_intera/documento_form.html', {
+        'vista_actual': 'documentos', 'form': formulario,
+    })
+
+
+@acceso_certificacion_intera_requerido
+def documento_descargar_view(request, documento_id):
+    documento = get_object_or_404(Documento, pk=documento_id)
+    visible = obtener_documentos_centro_modulo(
+        request.user, MODULO_DOCUMENTAL,
+    ).filter(pk=documento.pk).exists()
+    if not visible or not puede_realizar_operacion_documental(request.user, 'descargar'):
+        raise Http404
+    try:
+        return construir_respuesta_descarga(documento)
+    except ArchivoDocumentoNoDisponible:
+        return render(
+            request, 'portafolio/archivo_no_disponible.html',
+            {'documento': documento}, status=404,
+        )
 
 
 @acceso_certificacion_intera_requerido
@@ -1563,17 +1821,14 @@ def participante_eliminar_view(request, participante_id):
 
 def participante_detalle_view(request, participante_id):
     participante = _participante(participante_id)
+    aplicaciones = _aplicaciones_ordenadas_participante(participante)
     return render(
         request,
         'certificacion_intera/participante_detalle.html',
         {
             'vista_actual': 'procesos',
             'participante': participante,
-            'aplicaciones': participante.aplicaciones.select_related(
-                'instrumento',
-            ).exclude(
-                instrumento__clave__in=CLAVES_INSTRUMENTOS_DE_FLUJO_INTERNO,
-            ),
+            'aplicaciones': aplicaciones,
             'consejerias': participante.consejerias.all(),
             'canalizaciones': participante.canalizaciones.select_related('solicitud_atencion'),
         },
@@ -1984,6 +2239,42 @@ def _fecha_historica_aplicacion(aplicacion):
     return timezone.localtime(fecha).date() if timezone.is_aware(fecha) else fecha.date()
 
 
+def _configuraciones_bateria(proceso):
+    return list(
+        proceso.configuraciones_instrumento.select_related('instrumento').exclude(
+            instrumento__clave__in=CLAVES_INSTRUMENTOS_DE_FLUJO_INTERNO,
+        ).order_by('orden', 'id'),
+    )
+
+
+def _aplicaciones_ordenadas_participante(participante):
+    """Ordena aplicaciones reales por la batería sin ocultar registros históricos."""
+    configuraciones = _configuraciones_bateria(participante.proceso)
+    orden_por_instrumento = {
+        configuracion.instrumento_id: (configuracion.orden, configuracion.id)
+        for configuracion in configuraciones
+    }
+    aplicaciones = list(
+        AplicacionInstrumento.objects.filter(
+            participante=participante,
+            proceso=participante.proceso,
+        ).select_related('instrumento').exclude(
+            instrumento__clave__in=CLAVES_INSTRUMENTOS_DE_FLUJO_INTERNO,
+        ),
+    )
+    aplicaciones.sort(
+        key=lambda aplicacion: (
+            *orden_por_instrumento.get(
+                aplicacion.instrumento_id,
+                (10**9, 10**9),
+            ),
+            aplicacion.creado_en,
+            aplicacion.id,
+        ),
+    )
+    return aplicaciones
+
+
 def _detalle_resultado_presentacion(aplicacion):
     """Resume el resultado persistido sin exponer trazabilidad ni estructuras internas."""
     detalle = aplicacion.resultado_detalle or {}
@@ -2228,17 +2519,8 @@ def aplicacion_publica_view(request, token):
     )
 
 
-@acceso_certificacion_intera_requerido
-
-
-def resultado_view(request, aplicacion_id):
-    aplicacion = get_object_or_404(
-        AplicacionInstrumento.objects.select_related(
-            'participante__proceso__escuela',
-            'instrumento',
-        ),
-        id=aplicacion_id,
-    )
+def _presentacion_resultado(aplicacion):
+    """Construye una presentación reutilizable sin recalcular el resultado."""
     revision_calculadora = obtener_revision_calculadora(aplicacion.instrumento)
     mensaje_resultado_no_disponible = ''
     if not aplicacion.interpretacion:
@@ -2300,21 +2582,95 @@ def resultado_view(request, aplicacion_id):
         if prioridad['requiere_atencion_mismo_dia']:
             advertencia_prioritaria = ADVERTENCIA_PLUTCHIK_PRIORITARIA
 
+    return {
+        'aplicacion': aplicacion,
+        'instrumento': aplicacion.instrumento,
+        'estado': aplicacion.estado,
+        'estado_display': aplicacion.get_estado_display(),
+        'respondida': aplicacion.estado == AplicacionInstrumento.Estado.RESPONDIDA,
+        'resultado_disponible': bool(aplicacion.interpretacion),
+        'revision_resultado': obtener_revision_resultado(
+            aplicacion.revision_calculadora,
+        ),
+        'advertencia_prioritaria': advertencia_prioritaria,
+        'mensaje_resultado_no_disponible': mensaje_resultado_no_disponible,
+        'detalle_presentacion': _detalle_resultado_presentacion(aplicacion),
+    }
+
+
+@acceso_certificacion_intera_requerido
+def resultado_view(request, aplicacion_id):
+    aplicacion = get_object_or_404(
+        AplicacionInstrumento.objects.select_related(
+            'participante__proceso__escuela',
+            'instrumento',
+        ),
+        id=aplicacion_id,
+    )
+    presentacion = _presentacion_resultado(aplicacion)
     return render(
         request,
         'certificacion_intera/resultado.html',
         {
             'vista_actual': 'resultados',
-            'aplicacion': aplicacion,
             'respuestas': aplicacion.respuestas.select_related('pregunta'),
-            'revision_resultado': obtener_revision_resultado(
-                aplicacion.revision_calculadora
-            ),
-            'advertencia_prioritaria': (
-                advertencia_prioritaria
-            ),
-            'mensaje_resultado_no_disponible': mensaje_resultado_no_disponible,
-            'detalle_presentacion': _detalle_resultado_presentacion(aplicacion),
+            **presentacion,
+        },
+    )
+
+
+@acceso_certificacion_intera_requerido
+def resultados_participante_view(request, participante_id):
+    participante = _participante(participante_id)
+    configuraciones = _configuraciones_bateria(participante.proceso)
+    aplicaciones = _aplicaciones_ordenadas_participante(participante)
+    aplicaciones_por_instrumento = {}
+    for aplicacion in aplicaciones:
+        aplicaciones_por_instrumento.setdefault(
+            aplicacion.instrumento_id,
+            [],
+        ).append(aplicacion)
+
+    presentaciones = []
+    ids_incluidos = set()
+    for configuracion in configuraciones:
+        aplicaciones_configuradas = aplicaciones_por_instrumento.get(
+            configuracion.instrumento_id,
+            [],
+        )
+        if not aplicaciones_configuradas:
+            presentaciones.append({
+                'aplicacion': None,
+                'instrumento': configuracion.instrumento,
+                'estado': AplicacionInstrumento.Estado.PENDIENTE,
+                'estado_display': 'Pendiente',
+                'respondida': False,
+                'resultado_disponible': False,
+                'detalle_presentacion': [],
+            })
+            continue
+        for aplicacion in aplicaciones_configuradas:
+            presentaciones.append(_presentacion_resultado(aplicacion))
+            ids_incluidos.add(aplicacion.id)
+
+    for aplicacion in aplicaciones:
+        if aplicacion.id not in ids_incluidos:
+            presentaciones.append(_presentacion_resultado(aplicacion))
+
+    respondidas = sum(
+        1
+        for presentacion in presentaciones
+        if presentacion['respondida']
+    )
+    return render(
+        request,
+        'certificacion_intera/resultados_participante.html',
+        {
+            'vista_actual': 'resultados',
+            'participante': participante,
+            'presentaciones': presentaciones,
+            'respondidas': respondidas,
+            'total_instrumentos': len(presentaciones),
         },
     )
 

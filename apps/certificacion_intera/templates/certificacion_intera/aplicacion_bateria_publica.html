@@ -1,4 +1,4 @@
-{% load intera_publica %}
+{% load static intera_publica %}
 <!doctype html>
 <html lang="es">
 <head>
@@ -10,81 +10,14 @@
     >
 
     <title>Aplicación INTERA</title>
-
-    <style>
-        body {
-            margin: 0;
-            background: #eef1f6;
-            color: #1b2c4f;
-            font: 16px Arial, sans-serif;
-        }
-
-        .box {
-            max-width: 720px;
-            margin: 48px auto;
-            background: #fff;
-            padding: 32px;
-            border-radius: 16px;
-        }
-
-        .field {
-            margin: 14px 0;
-        }
-
-        .field label {
-            display: block;
-            font-weight: 600;
-            margin-bottom: 5px;
-        }
-
-        .field input,
-        .field select {
-            width: 100%;
-            box-sizing: border-box;
-            padding: 10px;
-            border: 1px solid #d9dfeb;
-            border-radius: 7px;
-        }
-
-        .field input[type="radio"] {
-            width: auto;
-        }
-
-        .question {
-            padding: 16px 0;
-            border-top: 1px solid #e6eaf2;
-        }
-
-        .question label {
-            display: block;
-            margin: 8px 0;
-        }
-
-        .question input {
-            width: auto;
-        }
-
-        .btn {
-            background: #5b5fae;
-            color: #fff;
-            border: 0;
-            border-radius: 8px;
-            padding: 12px 18px;
-            font-weight: bold;
-        }
-
-        .error {
-            color: #b4413b;
-        }
-
-        .context {
-            color: #66758c;
-        }
-    </style>
+    <link
+        rel="stylesheet"
+      href="{% static 'certificacion_intera/css/certificacion_intera.css' %}?v=aplicacion-publica-2"
+    >
 </head>
 
 <body>
-    <main class="box">
+    <main class="intera-public-card intera-public-card--{{ pantalla }}">
         {% if pantalla == 'inactiva' %}
             <h1>
                 Esta aplicación ya no se encuentra disponible.
@@ -100,7 +33,7 @@
                 Este proceso aún no tiene instrumentos disponibles.
             </h1>
 
-            <p class="context">
+            <p class="intera-public-context">
                 {{ proceso.escuela.nombre }} · {{ proceso.nombre }}
             </p>
 
@@ -125,21 +58,21 @@
                 evaluación.
             </p>
 
-            <p class="context">
+            <p class="intera-public-context">
                 {{ proceso.escuela.nombre }} · {{ proceso.nombre }}
             </p>
 
             {% if form.non_field_errors %}
-                <p class="error">
+                <p class="intera-public-error">
                     {{ form.non_field_errors }}
                 </p>
             {% endif %}
 
-            <form method="post">
+            <form method="post" class="intera-public-form">
                 {% csrf_token %}
 
                 {% for field in form %}
-                    <div class="field">
+                    <div class="intera-public-field">
                         <label for="{{ field.id_for_label }}">
                             {{ field.label }}
                             {% if field.field.required %}
@@ -150,70 +83,70 @@
                         {{ field }}
 
                         {% for error in field.errors %}
-                            <small class="error">
+                            <small class="intera-public-error">
                                 {{ error }}
                             </small>
                         {% endfor %}
                     </div>
                 {% endfor %}
 
-                <button class="btn">
-                    Continuar
-                </button>
+                <div class="intera-public-form-actions">
+                    <button class="intera-public-btn">Continuar</button>
+                </div>
             </form>
 
         {% elif pantalla == 'contexto_baremo' %}
-            <p class="context">
-                Evaluación {{ indice }} de {{ total }}
-            </p>
+            <header class="intera-public-intro">
+                <p class="intera-public-progress">
+                    Evaluación {{ indice }} de {{ total }}
+                </p>
 
-            <h1>
-                {{ instrumento|nombre_publico_intera }}
-            </h1>
+                <h1>{{ instrumento|nombre_publico_intera }}</h1>
 
-            <p>
-                Antes de continuar, necesitamos este dato únicamente para la
-                interpretación del instrumento.
-            </p>
+                <p class="intera-public-instructions">
+                    Antes de continuar, necesitamos este dato únicamente para la
+                    interpretación del instrumento.
+                </p>
+            </header>
 
-            <form method="post">
+            <form method="post" class="intera-public-form">
                 {% csrf_token %}
 
                 {% for field in form %}
-                    <div class="field">
-                        <label>
+                    <div class="intera-public-field">
+                        <label for="{{ field.id_for_label }}">
                             {{ field.label }} *
                         </label>
 
                         {{ field }}
 
                         {% for error in field.errors %}
-                            <small class="error">
+                            <small class="intera-public-error">
                                 {{ error }}
                             </small>
                         {% endfor %}
                     </div>
                 {% endfor %}
 
-                <button class="btn">
-                    Continuar
-                </button>
+                <div class="intera-public-form-actions">
+                    <button class="intera-public-btn">Continuar</button>
+                </div>
             </form>
 
         {% elif pantalla == 'instrucciones' %}
-            <p class="context">
-                Evaluación {{ indice }} de {{ total }}
-            </p>
+            <header class="intera-public-intro">
+                <p class="intera-public-progress">
+                    Evaluación {{ indice }} de {{ total }}
+                </p>
 
-            <h1>
-                {{ instrumento|nombre_publico_intera }}
-            </h1>
+                <h1>{{ instrumento|nombre_publico_intera }}</h1>
 
-            <p>
-                {{ instrumento.instrucciones }}
-            </p>
+                <p class="intera-public-instructions">
+                    {{ instrumento.instrucciones }}
+                </p>
+            </header>
 
-            <form method="post">
+            <form method="post" class="intera-public-form">
                 {% csrf_token %}
 
                 <input
@@ -222,27 +155,27 @@
                     value="comenzar"
                 >
 
-                <button class="btn">
-                    Comenzar evaluación
-                </button>
+                <div class="intera-public-form-actions">
+                    <button class="intera-public-btn">Comenzar evaluación</button>
+                </div>
             </form>
 
         {% elif pantalla == 'preguntas' %}
-            <p class="context">
-                Evaluación {{ indice }} de {{ total }}
-            </p>
+            <header class="intera-public-heading">
+                <p class="intera-public-progress">
+                    Evaluación {{ indice }} de {{ total }}
+                </p>
 
-            <h1>
-                {{ instrumento|nombre_publico_intera }}
-            </h1>
+                <h1>{{ instrumento|nombre_publico_intera }}</h1>
+            </header>
 
             {% if error %}
-                <p class="error">
+                <p class="intera-public-error">
                     {{ error }}
                 </p>
             {% endif %}
 
-            <form method="post">
+            <form method="post" class="intera-public-form">
                 {% csrf_token %}
 
                 <input
@@ -252,8 +185,8 @@
                 >
 
                 {% for pregunta in preguntas %}
-                    <section class="question">
-                        <strong>
+                    <section class="intera-public-question">
+                        <strong class="intera-public-question-text">
                             {{ forloop.counter }}. {{ pregunta.texto }}
 
                             {% if pregunta.requerida %}
@@ -262,18 +195,20 @@
                         </strong>
 
                         {% if pregunta.id in faltantes %}
-                            <small class="error">
+                            <small class="intera-public-error">
                                 Esta respuesta es obligatoria.
                             </small>
                         {% endif %}
 
                         {% if pregunta.tipo_respuesta == 'texto_libre' %}
                             <textarea
+                                class="intera-public-control"
                                 name="pregunta_{{ pregunta.id }}"
                             ></textarea>
                         {% else %}
+                            <div class="intera-public-options">
                             {% for opcion in pregunta.opciones %}
-                                <label>
+                                <label class="intera-public-option">
                                     <input
                                         type="{% if pregunta.tipo_respuesta == 'opcion_multiple' %}checkbox{% else %}radio{% endif %}"
                                         name="pregunta_{{ pregunta.id }}"
@@ -283,13 +218,14 @@
                                     {{ opcion.etiqueta }}
                                 </label>
                             {% endfor %}
+                            </div>
                         {% endif %}
                     </section>
                 {% endfor %}
 
-                <button class="btn">
-                    Continuar
-                </button>
+                <div class="intera-public-form-actions">
+                    <button class="intera-public-btn">Continuar</button>
+                </div>
             </form>
 
         {% else %}
@@ -303,7 +239,7 @@
             </p>
 
             {% if error %}
-                <p class="error">
+                <p class="intera-public-error">
                     {{ error }}
                 </p>
             {% endif %}
@@ -318,10 +254,10 @@
                 </a>
             </p>
 
-            <form method="post">
+            <form method="post" class="intera-public-form">
                 {% csrf_token %}
 
-                <label>
+                <label class="intera-public-option intera-public-consent">
                     <input
                         type="checkbox"
                         name="privacidad"
@@ -337,11 +273,9 @@
                     value="enviar"
                 >
 
-                <p>
-                    <button class="btn">
-                        Enviar respuestas
-                    </button>
-                </p>
+                <div class="intera-public-form-actions">
+                    <button class="intera-public-btn">Enviar respuestas</button>
+                </div>
             </form>
         {% endif %}
     </main>
