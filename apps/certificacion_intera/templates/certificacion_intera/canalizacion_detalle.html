@@ -17,14 +17,6 @@
 
 {% block contenido %}
     <div class="intera-stack">
-        <p>
-            <a
-                href="{% url 'certificacion_intera:participante_detalle' canalizacion.participante.id %}"
-            >
-                ← Volver al participante
-            </a>
-        </p>
-
         <section class="intera-card intera-card-pad">
             <h1>
                 {{ canalizacion.get_tipo_display }}
