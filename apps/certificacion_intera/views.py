@@ -1091,6 +1091,46 @@ def _sesion_publica_clave(publica):
     return f'intera_bateria_publica_{publica.token}'
 
 
+def _normalizar_identidad(valor):
+    return ' '.join((valor or '').split()).casefold()
+
+
+def _buscar_participante_publico(
+    proceso,
+    nombre,
+    fecha_nacimiento,
+    grupo,
+    numero_alumno='',
+):
+    candidatos = Participante.objects.filter(proceso=proceso)
+    if fecha_nacimiento is not None:
+        candidatos = candidatos.filter(fecha_nacimiento=fecha_nacimiento)
+    coincidencias = [
+        participante
+        for participante in candidatos.order_by('id')
+        if (
+            _normalizar_identidad(participante.nombre)
+            == _normalizar_identidad(nombre)
+            and _normalizar_identidad(participante.grupo)
+            == _normalizar_identidad(grupo)
+        )
+    ]
+    if len(coincidencias) <= 1:
+        return (coincidencias[0] if coincidencias else None), False
+    if numero_alumno:
+        coincidencias_numero = [
+            participante
+            for participante in coincidencias
+            if (
+                _normalizar_identidad(participante.numero_alumno)
+                == _normalizar_identidad(numero_alumno)
+            )
+        ]
+        if len(coincidencias_numero) == 1:
+            return coincidencias_numero[0], False
+    return None, True
+
+
 @acceso_certificacion_intera_requerido
 
 
@@ -1827,16 +1867,41 @@ def aplicacion_publica_config_view(request, token):
                     'pantalla': 'formulario',
                 },
             )
-        participante, _ = Participante.objects.get_or_create(
-            proceso=proceso,
-            numero_alumno=numero,
-            defaults={
-                'nombre': nombre,
-                'grupo': grupo,
-                'sexo': sexo,
-                'fecha_nacimiento': fecha_nacimiento_valor,
-            },
-        )
+        with transaction.atomic():
+            ProcesoCertificacion.objects.select_for_update().get(id=proceso.id)
+            participante, identidad_ambigua = _buscar_participante_publico(
+                proceso,
+                nombre,
+                fecha_nacimiento_valor,
+                grupo,
+                numero,
+            )
+            if identidad_ambigua:
+                return render(
+                    request,
+                    'certificacion_intera/aplicacion_publica.html',
+                    {
+                        **contexto,
+                        'preguntas': preguntas,
+                        'error': (
+                            'No fue posible confirmar la información. '
+                            'Revisa tus datos o comunícate con Coordinación INTERA.'
+                        ),
+                        'pantalla': 'formulario',
+                    },
+                )
+            if not participante:
+                participante = Participante.objects.create(
+                    proceso=proceso,
+                    nombre=nombre,
+                    numero_alumno=numero,
+                    grupo=grupo,
+                    sexo=sexo,
+                    fecha_nacimiento=fecha_nacimiento_valor,
+                )
+            elif not participante.numero_alumno and numero:
+                participante.numero_alumno = numero
+                participante.save(update_fields=['numero_alumno'])
         if 'sexo' in campos_contexto and participante.sexo != sexo:
             participante.sexo = sexo
             participante.save(update_fields=['sexo'])

@@ -117,7 +117,6 @@ def registrar(
 def verificar(
     participante,
     usuario,
-    numero,
     nombre,
     fecha,
 ):
@@ -149,8 +148,6 @@ def verificar(
     ok = (
         intentos < limite
         and requisitos(participante)['puede_iniciar']
-        and normalizar(numero)
-        == normalizar(participante.numero_alumno)
         and normalizar(nombre)
         == normalizar(participante.nombre)
         and fecha == participante.fecha_nacimiento

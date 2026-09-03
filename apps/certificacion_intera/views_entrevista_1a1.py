@@ -123,10 +123,6 @@ def acceso_view(request, participante_id):
             participante,
             request.user,
             request.POST.get(
-                'numero_alumno',
-                '',
-            ),
-            request.POST.get(
                 'nombre',
                 '',
             ),

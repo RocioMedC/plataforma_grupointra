@@ -205,17 +205,6 @@ class ParticipantePublicoForm(ParticipanteForm):
 
         return fecha
 
-    def clean(self):
-        datos = super().clean()
-
-        if not datos.get('nombre') or not datos.get('numero_alumno'):
-            raise ValidationError(
-                'Captura nombre completo y matrícula.'
-            )
-
-        return datos
-
-
 class SexoBaremoPublicoForm(forms.Form):
     """Dato contextual capturado solo cuando una calculadora lo requiere."""
 

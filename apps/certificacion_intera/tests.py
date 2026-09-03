@@ -1345,6 +1345,54 @@ class EntrevistaUnoAUnoCapturaTests(TestCase):
             EntrevistaUnoAUno.Estado.FINALIZADA,
         )
 
+    def test_acceso_ignora_numero_vacio_o_repetido_y_usa_participante_por_id(self):
+        nacimiento = date(2009, 2, 3)
+        participantes = [
+            Participante.objects.create(
+                proceso=self.proceso,
+                nombre='Ana López',
+                numero_alumno='5',
+                grupo='A',
+                fecha_nacimiento=nacimiento,
+            ),
+            Participante.objects.create(
+                proceso=self.proceso,
+                nombre='María Pérez',
+                numero_alumno='5',
+                grupo='B',
+                fecha_nacimiento=nacimiento,
+            ),
+            Participante.objects.create(
+                proceso=self.proceso,
+                nombre='Carlos Ruiz',
+                numero_alumno='',
+                grupo='C',
+                fecha_nacimiento=nacimiento,
+            ),
+        ]
+        for participante in participantes:
+            url = reverse(
+                'certificacion_intera:entrevista_1a1_acceso',
+                args=[participante.id],
+            )
+            pagina = self.client.get(url)
+            self.assertNotContains(pagina,'Número de alumno',)
+            respuesta = self.client.post(
+                url,
+                {
+                    'nombre': f'  {participante.nombre.upper()}  ',
+                    'fecha_nacimiento': nacimiento.isoformat(),
+                },
+            )
+            self.assertRedirects(
+                respuesta,
+                reverse(
+                    'certificacion_intera:entrevista_1a1',
+                    args=[participante.id],
+                ),
+                fetch_redirect_response=False,
+            )
+
 @override_settings(
     STORAGES={
         'default': {

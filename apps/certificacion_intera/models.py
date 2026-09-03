@@ -142,7 +142,12 @@ class Participante(models.Model):
         related_name='participantes',
     )
     nombre = models.CharField(max_length=200)
-    numero_alumno = models.CharField(max_length=50)
+    numero_alumno = models.CharField(
+        'Número de alumno / lista (opcional)',
+        max_length=50,
+        blank=True,
+        default='',
+    )
     grupo = models.CharField(max_length=100, blank=True)
     sexo = models.CharField(
         max_length=15,
@@ -163,10 +168,13 @@ class Participante(models.Model):
 
     class Meta:
         ordering = ['nombre']
-        unique_together = ('proceso', 'numero_alumno')
 
     def __str__(self):
-        return f'{self.nombre} · {self.numero_alumno}'
+        return (
+            f'{self.nombre} · {self.numero_alumno}'
+            if self.numero_alumno
+            else self.nombre
+        )
 
     @property
     def aplicaciones_pendientes(self):
@@ -186,7 +194,7 @@ class Participante(models.Model):
 class AplicacionInstrumento(models.Model):
     class Estado(models.TextChoices):
         PENDIENTE = ('pendiente', 'Pendiente')
-        RESPONDIDA = ('respondida', 'Respondida')
+        RESPONDIDA = ('respondida', 'Concluida')
         CANCELADA = ('cancelada', 'Cancelada')
 
     token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
@@ -356,7 +364,12 @@ class EntrevistaSeguimiento(models.Model):
         related_name='entrevista',
     )
     nombre_confirmado = models.CharField(max_length=200)
-    numero_alumno_confirmado = models.CharField(max_length=50)
+    numero_alumno_confirmado = models.CharField(
+        'Número de alumno / lista (opcional)',
+        max_length=50,
+        blank=True,
+        default='',
+    )
     fecha = models.DateField()
     observaciones = models.TextField(blank=True)
     decision = models.CharField(max_length=15, choices=Decision.choices)
